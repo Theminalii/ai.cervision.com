@@ -124,3 +124,4 @@ git push
 - Frontend and backend are in the same repository.
 - Backend local development is currently prepared to run on `127.0.0.1:8000`.
 - Settings, sales, purchases, products, stock, warehouses, finance, reports, customers, suppliers and POS are wired to the backend API.
+# best.cervision.com
