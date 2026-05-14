@@ -30,6 +30,7 @@ bestsol-frontend-ui/
 
 ```bash
 npm install
+npm run build
 npm run dev
 ```
 
@@ -54,6 +55,12 @@ Backend runs on:
 
 ```text
 http://127.0.0.1:8000
+```
+
+Frontend local environment:
+
+```bash
+cp .env.example .env.local
 ```
 
 Seeded admin:
@@ -97,6 +104,41 @@ Before pushing, make sure:
 3. `node_modules` and `.next` are not committed
 4. any local secrets are kept only in `.env`
 
+## Deployment
+
+GitHub itself only stores code. It does not run your Laravel backend automatically.
+
+If you uploaded the whole folder to GitHub and opened the frontend somewhere, backend data will not come until you deploy the backend separately and connect the frontend to that backend URL.
+
+Recommended setup:
+
+1. Deploy frontend to Vercel
+2. Deploy `backend/` Laravel API to Railway, Render, VPS, or shared hosting
+3. In frontend environment variables set:
+
+```env
+NEXT_PUBLIC_BACKEND_API_URL=https://your-backend-domain.com/api
+```
+
+4. In backend `.env` set:
+
+```env
+APP_URL=https://your-backend-domain.com
+FRONTEND_URL=https://your-frontend-domain.com
+```
+
+5. In backend `config/cors.php`, allow your frontend domain if needed
+
+Example:
+
+- Frontend: `https://bestsol.vercel.app`
+- Backend: `https://bestsol-api.up.railway.app`
+- Frontend env:
+
+```env
+NEXT_PUBLIC_BACKEND_API_URL=https://bestsol-api.up.railway.app/api
+```
+
 ## Create and Push Repository
 
 If this folder is not yet a git repository:
@@ -125,3 +167,4 @@ git push
 - Backend local development is currently prepared to run on `127.0.0.1:8000`.
 - Settings, sales, purchases, products, stock, warehouses, finance, reports, customers, suppliers and POS are wired to the backend API.
 # best.cervision.com
+# bestsol.cervision.com
