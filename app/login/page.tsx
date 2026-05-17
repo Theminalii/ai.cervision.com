@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { LOGGED_OUT_KEY, TOKEN_KEY, loginToBackend } from "@/lib/backend-api"
+import { LOGGED_OUT_KEY, TOKEN_KEY, backendFetch, loginToBackend } from "@/lib/backend-api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,23 @@ export default function LoginPage() {
     email: "",
     password: "",
   })
+
+  const resolveDestination = async (token: string) => {
+    try {
+      const response = await backendFetch("/me", token)
+      const json = await response.json()
+      const user = json.data ?? json
+      const isMobile = typeof window !== "undefined" && window.innerWidth < 768
+
+      if (isMobile && user?.role?.name === "Satış Nümayəndəsi") {
+        return "/sales/new"
+      }
+    } catch {
+      // Fallback to dashboard when role lookup fails.
+    }
+
+    return "/dashboard"
+  }
 
   const submit = async () => {
     if (!form.email.trim() || !form.password) {
@@ -35,7 +52,7 @@ export default function LoginPage() {
 
       window.localStorage.setItem(TOKEN_KEY, token)
       window.localStorage.removeItem(LOGGED_OUT_KEY)
-      router.push("/dashboard")
+      router.push(await resolveDestination(token))
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Giriş alınmadı.")
     } finally {
