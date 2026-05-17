@@ -26,7 +26,7 @@ export default function LoginPage() {
       const isMobile = typeof window !== "undefined" && window.innerWidth < 768
 
       if (isMobile && user?.role?.name === "Satış Nümayəndəsi") {
-        return "/sales/new"
+        return "/pos"
       }
     } catch {
       // Fallback to dashboard when role lookup fails.

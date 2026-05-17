@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { backendFetch, clearBackendSession, ensureBackendToken } from "@/lib/backend-api"
 import { FrontendUser, hasPermission } from "@/lib/permissions"
-import { Bell, Search, Command, ChevronDown, Plus, LogOut, User, Settings, Loader2 } from "lucide-react"
+import { Bell, Search, Command, ChevronDown, Plus, LogOut, User, Settings, Loader2, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -40,7 +40,7 @@ type InAppNotification = {
   created_at: string
 }
 
-export function Header({ title = "Ümumi Baxış", subtitle }: HeaderProps) {
+export function Header({ title = "Ümumi Baxış", subtitle, onMenuClick }: HeaderProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<FrontendUser | null>(null)
@@ -130,9 +130,28 @@ export function Header({ title = "Ümumi Baxış", subtitle }: HeaderProps) {
     { href: "/suppliers", label: "Yeni Təchizatçı", permission: "purchase_add" },
   ].filter((item) => !item.permission || hasPermission(user, item.permission))
 
+  const openSidebar = () => {
+    if (onMenuClick) {
+      onMenuClick()
+      return
+    }
+
+    window.dispatchEvent(new Event("bestsol:open-sidebar"))
+  }
+
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur-sm">
-      <div className="flex items-center gap-6">
+      <div className="flex items-center gap-3 sm:gap-6">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 shrink-0 lg:hidden"
+          onClick={openSidebar}
+          aria-label="Menyunu ac"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
         <div>
           <h1 className="text-[15px] font-semibold text-foreground">{title}</h1>
           {subtitle && <p className="text-[12px] text-muted-foreground">{subtitle}</p>}

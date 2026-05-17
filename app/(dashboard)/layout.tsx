@@ -3,11 +3,9 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Sidebar } from "@/components/layout/sidebar"
-import { Button } from "@/components/ui/button"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { backendFetch, ensureBackendToken } from "@/lib/backend-api"
 import { cn } from "@/lib/utils"
-import { Menu } from "lucide-react"
 
 export default function DashboardLayout({
   children,
@@ -38,7 +36,7 @@ export default function DashboardLayout({
         const user = json.data ?? json
 
         if (!cancelled && user?.role?.name === "Satış Nümayəndəsi") {
-          router.replace("/sales/new")
+          router.replace("/pos")
         }
       } catch {
         // Keep current page when user lookup fails.
@@ -51,6 +49,15 @@ export default function DashboardLayout({
       cancelled = true
     }
   }, [isMobile, pathname, router])
+
+  useEffect(() => {
+    const openSidebar = () => setSidebarOpen(true)
+    window.addEventListener("bestsol:open-sidebar", openSidebar)
+
+    return () => {
+      window.removeEventListener("bestsol:open-sidebar", openSidebar)
+    }
+  }, [])
 
   return (
     <div className="flex h-screen bg-background">
@@ -71,18 +78,6 @@ export default function DashboardLayout({
       >
         <Sidebar />
       </div>
-
-      {isMobile ? (
-        <Button
-          type="button"
-          size="icon"
-          className="fixed bottom-20 left-4 z-50 h-12 w-12 rounded-full shadow-lg lg:hidden"
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Menyunu ac"
-        >
-          <Menu className="h-5 w-5" />
-        </Button>
-      ) : null}
 
       {/* Main content */}
       <div className="flex min-h-0 flex-1 flex-col lg:pl-64">
