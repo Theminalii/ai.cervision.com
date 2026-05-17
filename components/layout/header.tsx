@@ -20,6 +20,7 @@ interface HeaderProps {
   title?: string
   subtitle?: string
   onMenuClick?: () => void
+  lightweight?: boolean
 }
 
 type HeaderSale = {
@@ -40,7 +41,7 @@ type InAppNotification = {
   created_at: string
 }
 
-export function Header({ title = "Ümumi Baxış", subtitle, onMenuClick }: HeaderProps) {
+export function Header({ title = "Ümumi Baxış", subtitle, onMenuClick, lightweight = false }: HeaderProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<FrontendUser | null>(null)
@@ -51,19 +52,29 @@ export function Header({ title = "Ümumi Baxış", subtitle, onMenuClick }: Head
   async function bootstrap() {
     try {
       const token = await ensureBackendToken("bestsol-header-web")
-      const [meResponse, recentSalesResponse, lowStockResponse, notificationsResponse] = await Promise.all([
-        backendFetch("/me", token),
+      const meResponse = await backendFetch("/me", token)
+
+      const meJson = await meResponse.json()
+
+      setUser(meJson.data ?? meJson)
+
+      if (lightweight) {
+        setRecentSales([])
+        setLowStock([])
+        setInAppNotifications([])
+        return
+      }
+
+      const [recentSalesResponse, lowStockResponse, notificationsResponse] = await Promise.all([
         backendFetch("/dashboard/recent-sales", token),
         backendFetch("/dashboard/low-stock", token),
         backendFetch("/dashboard/notifications", token),
       ])
 
-      const meJson = await meResponse.json()
       const recentSalesJson = await recentSalesResponse.json()
       const lowStockJson = await lowStockResponse.json()
       const notificationsJson = await notificationsResponse.json()
 
-      setUser(meJson.data ?? meJson)
       setRecentSales(recentSalesJson.data ?? [])
       setLowStock(lowStockJson.data ?? [])
       setInAppNotifications(notificationsJson.data ?? [])
@@ -187,43 +198,45 @@ export function Header({ title = "Ümumi Baxış", subtitle, onMenuClick }: Head
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative h-8 w-8">
-              <Bell className="h-4 w-4" />
-              {notifications.length > 0 && (
-                <span className="absolute right-1 top-1 flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"></span>
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
-                </span>
-              )}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
-            <DropdownMenuLabel className="flex items-center justify-between text-[13px]">
-              Bildirişlər
-              <span className="text-[11px] font-normal text-primary">{notifications.length} yeni</span>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <div className="max-h-80 overflow-y-auto">
-              {notifications.length === 0 ? (
-                <div className="px-3 py-4 text-sm text-muted-foreground">Yeni bildiriş yoxdur.</div>
-              ) : (
-                notifications.map((notification, index) => (
-                  <DropdownMenuItem key={`${notification.title}-${index}`} className="flex cursor-pointer flex-col items-start gap-1 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className={`h-2 w-2 rounded-full ${
-                        notification.tone === "warning" ? "bg-warning" : notification.tone === "success" ? "bg-success" : "bg-primary"
-                      }`} />
-                      <span className="text-[13px] font-medium">{notification.title}</span>
-                    </div>
-                    <span className="pl-4 text-[12px] text-muted-foreground">{notification.body}</span>
-                  </DropdownMenuItem>
-                ))
-              )}
-            </div>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {lightweight ? null : (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="relative h-8 w-8">
+                <Bell className="h-4 w-4" />
+                {notifications.length > 0 && (
+                  <span className="absolute right-1 top-1 flex h-2 w-2">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex h-2 w-2 rounded-full bg-primary"></span>
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-80">
+              <DropdownMenuLabel className="flex items-center justify-between text-[13px]">
+                Bildirişlər
+                <span className="text-[11px] font-normal text-primary">{notifications.length} yeni</span>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="max-h-80 overflow-y-auto">
+                {notifications.length === 0 ? (
+                  <div className="px-3 py-4 text-sm text-muted-foreground">Yeni bildiriş yoxdur.</div>
+                ) : (
+                  notifications.map((notification, index) => (
+                    <DropdownMenuItem key={`${notification.title}-${index}`} className="flex cursor-pointer flex-col items-start gap-1 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2 w-2 rounded-full ${
+                          notification.tone === "warning" ? "bg-warning" : notification.tone === "success" ? "bg-success" : "bg-primary"
+                        }`} />
+                        <span className="text-[13px] font-medium">{notification.title}</span>
+                      </div>
+                      <span className="pl-4 text-[12px] text-muted-foreground">{notification.body}</span>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </div>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

@@ -70,14 +70,16 @@ export default function DashboardLayout({
       )}
 
       {/* Sidebar */}
-      <div
-        className={cn(
-          "fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ease-in-out lg:translate-x-0",
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        <Sidebar />
-      </div>
+      {!isMobile || sidebarOpen ? (
+        <div
+          className={cn(
+            "fixed inset-y-0 left-0 z-40 w-64 transform transition-transform duration-200 ease-in-out lg:translate-x-0",
+            sidebarOpen || !isMobile ? "translate-x-0" : "-translate-x-full"
+          )}
+        >
+          <Sidebar />
+        </div>
+      ) : null}
 
       {/* Main content */}
       <div className="flex min-h-0 flex-1 flex-col lg:pl-64">

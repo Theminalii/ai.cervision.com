@@ -2,6 +2,7 @@ export const API_BASE = process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://127.0
 export const TOKEN_KEY = "bestsol-backend-token"
 export const LOGGED_OUT_KEY = "bestsol-logged-out"
 export const API_BASE_STORAGE_KEY = "bestsol-backend-api-base"
+export const SESSION_ACTIVE_KEY = "bestsol-session-active"
 
 function getSessionStorage() {
   if (typeof window === "undefined") {
@@ -11,51 +12,67 @@ function getSessionStorage() {
   return window.sessionStorage
 }
 
-function clearLegacyAuthStorage() {
+function getLocalStorage() {
   if (typeof window === "undefined") {
+    return null
+  }
+
+  return window.localStorage
+}
+
+function initializeBrowserSession() {
+  const session = getSessionStorage()
+  const local = getLocalStorage()
+  if (!session || !local) {
     return
   }
 
-  window.localStorage.removeItem(TOKEN_KEY)
-  window.localStorage.removeItem(LOGGED_OUT_KEY)
+  if (session.getItem(SESSION_ACTIVE_KEY) === "1") {
+    return
+  }
+
+  local.removeItem(TOKEN_KEY)
+  local.removeItem(LOGGED_OUT_KEY)
+  session.setItem(SESSION_ACTIVE_KEY, "1")
 }
 
 export function getStoredToken() {
-  const storage = getSessionStorage()
+  const storage = getLocalStorage()
   if (!storage) {
     return null
   }
 
-  clearLegacyAuthStorage()
+  initializeBrowserSession()
   return storage.getItem(TOKEN_KEY)
 }
 
 export function setStoredToken(token: string) {
-  const storage = getSessionStorage()
+  const storage = getLocalStorage()
   if (!storage) {
     return
   }
 
-  clearLegacyAuthStorage()
+  initializeBrowserSession()
   storage.setItem(TOKEN_KEY, token)
 }
 
 export function clearStoredToken() {
-  const storage = getSessionStorage()
+  const storage = getLocalStorage()
   if (!storage) {
     return
   }
 
   storage.removeItem(TOKEN_KEY)
-  clearLegacyAuthStorage()
 }
 
 export function getLoggedOutFlag() {
+  initializeBrowserSession()
   const storage = getSessionStorage()
   return storage?.getItem(LOGGED_OUT_KEY) ?? null
 }
 
 export function setLoggedOutFlag() {
+  initializeBrowserSession()
   const storage = getSessionStorage()
   if (!storage) {
     return
@@ -65,6 +82,7 @@ export function setLoggedOutFlag() {
 }
 
 export function clearLoggedOutFlag() {
+  initializeBrowserSession()
   const storage = getSessionStorage()
   if (!storage) {
     return

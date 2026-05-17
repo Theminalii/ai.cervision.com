@@ -133,6 +133,7 @@ export default function POSPage() {
   const router = useRouter()
   const searchRef = useRef<HTMLInputElement | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isCustomersLoading, setIsCustomersLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAddCustomerOpen, setIsAddCustomerOpen] = useState(false)
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
@@ -165,30 +166,39 @@ export default function POSPage() {
 
   async function bootstrap() {
     setIsLoading(true)
+    setIsCustomersLoading(true)
     setErrorMessage(null)
     try {
       const token = await ensureBackendToken("bestsol-pos-web")
-      const [productsResponse, customersResponse, categoriesResponse] = await Promise.all([
+      const customersPromise = backendFetch("/customers?per_page=400&sort=id&direction=asc", token)
+      const [productsResponse, categoriesResponse] = await Promise.all([
         backendFetch("/products?per_page=400&sort=id&direction=asc", token),
-        backendFetch("/customers?per_page=400&sort=id&direction=asc", token),
         backendFetch("/categories", token),
       ])
 
       const productsJson = await productsResponse.json()
-      const customersJson = await customersResponse.json()
       const categoriesJson = await categoriesResponse.json()
 
       const categoryItems = flattenCategories(unwrapCollection<Category>(categoriesJson))
       setProducts(productsJson.data ?? [])
-      setCustomers(customersJson.data ?? [])
       setCategories([
         { id: "all", name: "Hamısı" },
         ...categoryItems.map((category) => ({ id: String(category.id), name: category.name })),
       ])
+
+      setIsLoading(false)
+
+      try {
+        const customersResponse = await customersPromise
+        const customersJson = await customersResponse.json()
+        setCustomers(customersJson.data ?? [])
+      } finally {
+        setIsCustomersLoading(false)
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "POS məlumatları yüklənmədi.")
-    } finally {
       setIsLoading(false)
+      setIsCustomersLoading(false)
     }
   }
 
@@ -483,7 +493,7 @@ export default function POSPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-screen flex-col">
-        <Header title="POS" subtitle="Kassa satışları və sürətli əməliyyatlar" />
+        <Header title="POS" subtitle="Kassa satışları və sürətli əməliyyatlar" lightweight />
         <div className="flex flex-1 items-center justify-center">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -528,19 +538,19 @@ export default function POSPage() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <Header title="POS" subtitle="Kassa satışları və sürətli əməliyyatlar" />
+      <Header title="POS" subtitle="Kassa satışları və sürətli əməliyyatlar" lightweight />
 
-      <div className="flex-1 p-6">
+      <div className="flex-1 p-3 sm:p-4 lg:p-6">
         {errorMessage && (
           <div className="mb-4 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
             {errorMessage}
           </div>
         )}
 
-        <div className="flex h-[calc(100vh-10rem)] gap-4">
-          <div className="flex flex-1 flex-col">
+        <div className="flex flex-col gap-4 lg:h-[calc(100vh-10rem)] lg:flex-row">
+          <div className="flex min-h-0 flex-1 flex-col">
             <div className="space-y-4 pb-4">
-              <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto_auto]">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -548,34 +558,50 @@ export default function POSPage() {
                     placeholder="Məhsul adı və ya barkod..."
                     value={searchTerm}
                     onChange={(event) => setSearchTerm(event.target.value)}
-                    className="pl-9"
+                    className="h-11 rounded-xl border-slate-200 pl-9 text-sm"
                   />
                 </div>
-                <Button variant={saleType === "cash" ? "default" : "outline"} onClick={() => updateSaleType("cash")}>
+                <Button
+                  variant={saleType === "cash" ? "default" : "outline"}
+                  onClick={() => updateSaleType("cash")}
+                  className="h-11 rounded-xl"
+                >
                   <Banknote className="mr-2 h-4 w-4" />
                   Nağd satış
                 </Button>
-                <Button variant={saleType === "official" ? "default" : "outline"} onClick={() => updateSaleType("official")}>
+                <Button
+                  variant={saleType === "official" ? "default" : "outline"}
+                  onClick={() => updateSaleType("official")}
+                  className="h-11 rounded-xl"
+                >
                   <CreditCard className="mr-2 h-4 w-4" />
                   Rəsmi satış
                 </Button>
-                <Button variant="outline" onClick={focusScanner}>
+                <Button variant="outline" onClick={focusScanner} className="h-11 rounded-xl">
                   <Barcode className="mr-2 h-4 w-4" />
                   Skan
                 </Button>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                {categories.map((category) => (
-                  <Button key={category.id} variant={selectedCategory === category.id ? "default" : "outline"} size="sm" onClick={() => setSelectedCategory(category.id)}>
-                    {category.name}
-                  </Button>
-                ))}
-              </div>
+              <ScrollArea className="w-full whitespace-nowrap">
+                <div className="flex gap-2 pb-1">
+                  {categories.map((category) => (
+                    <Button
+                      key={category.id}
+                      variant={selectedCategory === category.id ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setSelectedCategory(category.id)}
+                      className="h-9 shrink-0 rounded-full px-4"
+                    >
+                      {category.name}
+                    </Button>
+                  ))}
+                </div>
+              </ScrollArea>
             </div>
 
-            <ScrollArea className="flex-1 pr-2">
-              <div className="grid grid-cols-4 gap-3">
+            <ScrollArea className="min-h-0 flex-1 pr-1 sm:pr-2">
+              <div className="grid grid-cols-2 gap-3 pb-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {filteredProducts.map((product) => {
                   const availableStock = saleType === "cash"
                     ? Number(product.stock?.real_quantity ?? 0)
@@ -584,24 +610,29 @@ export default function POSPage() {
                   return (
                     <Card
                       key={product.id}
-                      className="cursor-pointer transition-all hover:border-primary/50 hover:shadow-md"
+                      className="cursor-pointer overflow-hidden rounded-2xl border-slate-200 transition-all hover:border-primary/50 hover:shadow-md"
                       onClick={() => addToCart(product)}
                     >
-                      <CardContent className="p-3">
-                        <div className="mb-2 aspect-square rounded-lg bg-muted flex items-center justify-center overflow-hidden">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="mb-3 aspect-[4/4.2] rounded-2xl bg-muted flex items-center justify-center overflow-hidden">
                           {buildAssetUrl(product.image) ? (
                             <img src={buildAssetUrl(product.image) ?? ""} alt={product.name} className="h-full w-full object-cover" />
                           ) : (
                             <ShoppingCart className="h-8 w-8 text-muted-foreground/50" />
                           )}
                         </div>
-                        <h3 className="truncate text-sm font-medium">{product.name}</h3>
-                        <p className="text-xs text-muted-foreground">{product.product_code}</p>
-                        <div className="mt-2 flex items-center justify-between">
-                          <span className="font-bold text-primary">
+                        <div className="space-y-1">
+                          <h3 className="line-clamp-2 min-h-[2.5rem] text-sm font-semibold leading-5">{product.name}</h3>
+                          <p className="truncate text-xs text-muted-foreground">{product.product_code}</p>
+                        </div>
+                        <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                          <span className="text-sm font-bold text-primary sm:text-base">
                             {formatCurrency(saleType === "cash" ? product.cash_sale_price : product.official_sale_price)}
                           </span>
-                          <Badge variant={availableStock > 10 ? "secondary" : "destructive"} className="text-xs">
+                          <Badge
+                            variant={availableStock > 10 ? "secondary" : "destructive"}
+                            className="w-fit rounded-full px-2.5 py-1 text-[11px]"
+                          >
                             {availableStock} ədəd
                           </Badge>
                         </div>
@@ -613,16 +644,16 @@ export default function POSPage() {
             </ScrollArea>
           </div>
 
-          <Card className="w-[400px] flex flex-col">
+          <Card className="flex w-full flex-col overflow-hidden rounded-3xl border-slate-200 lg:w-[390px] xl:w-[420px]">
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <ShoppingCart className="h-5 w-5" />
                   Səbət
                   {cart.length > 0 && <Badge variant="secondary">{cart.length}</Badge>}
                 </CardTitle>
                 {cart.length > 0 && (
-                  <Button variant="ghost" size="sm" onClick={clearCart} className="text-red-600">
+                  <Button variant="ghost" size="sm" onClick={clearCart} className="justify-start text-red-600 sm:justify-center">
                     <Trash2 className="mr-1 h-4 w-4" />
                     Təmizlə
                   </Button>
@@ -632,7 +663,7 @@ export default function POSPage() {
               <Select value={selectedCustomer || "guest"} onValueChange={(value) => setSelectedCustomer(value === "guest" ? "" : value)}>
                 <SelectTrigger className="mt-2">
                   <User className="mr-2 h-4 w-4" />
-                  <SelectValue placeholder="Müştəri seç (opsional)" />
+                  <SelectValue placeholder={isCustomersLoading ? "Müştərilər yüklənir..." : "Müştəri seç (opsional)"} />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="guest">Qonaq müştəri</SelectItem>
@@ -644,16 +675,16 @@ export default function POSPage() {
                 </SelectContent>
               </Select>
 
-              <Button variant="outline" onClick={() => setIsAddCustomerOpen(true)}>
+              <Button variant="outline" onClick={() => setIsAddCustomerOpen(true)} className="h-11 rounded-xl">
                 <UserPlus className="mr-2 h-4 w-4" />
                 Yeni müştəri yarat
               </Button>
             </CardHeader>
 
             <CardContent className="flex flex-1 flex-col p-0">
-              <ScrollArea className="flex-1 px-4">
+              <ScrollArea className="max-h-[26rem] flex-1 px-4 lg:max-h-none">
                 {cart.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                  <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
                     <ShoppingCart className="mb-4 h-12 w-12" />
                     <p>Səbət boşdur</p>
                     <p className="text-sm">Məhsul əlavə etmək üçün klikləyin</p>
@@ -661,41 +692,47 @@ export default function POSPage() {
                 ) : (
                   <div className="space-y-3 py-2">
                     {cart.map((item) => (
-                      <div key={item.id} className="flex items-center gap-3 rounded-lg bg-muted/50 p-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="truncate text-sm font-medium">{item.name}</p>
-                          <p className="text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
+                      <div key={item.id} className="rounded-2xl border border-slate-200 bg-muted/40 p-3">
+                        <div className="flex items-start gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{item.name}</p>
+                            <p className="text-xs text-muted-foreground">{item.productCode}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{formatCurrency(item.price)}</p>
+                          </div>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="icon"
-                            className="h-7 w-7"
-                            onClick={() => updateQuantity(item.id, -1)}
+                            className="h-8 w-8 shrink-0 text-red-600"
+                            onClick={() => removeFromCart(item.id)}
                           >
-                            <Minus className="h-3 w-3" />
-                          </Button>
-                          <span className="w-8 text-center font-medium">{item.quantity}</span>
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-7 w-7"
-                            onClick={() => updateQuantity(item.id, 1)}
-                          >
-                            <Plus className="h-3 w-3" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
-                        <div className="w-20 text-right">
-                          <p className="font-medium">{formatCurrency(item.price * item.quantity)}</p>
+                        <div className="mt-3 flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-xl"
+                              onClick={() => updateQuantity(item.id, -1)}
+                            >
+                              <Minus className="h-3 w-3" />
+                            </Button>
+                            <span className="w-8 text-center text-sm font-semibold">{item.quantity}</span>
+                            <Button
+                              variant="outline"
+                              size="icon"
+                              className="h-8 w-8 rounded-xl"
+                              onClick={() => updateQuantity(item.id, 1)}
+                            >
+                              <Plus className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-muted-foreground">Cəm</p>
+                            <p className="font-semibold">{formatCurrency(item.price * item.quantity)}</p>
+                          </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-red-600"
-                          onClick={() => removeFromCart(item.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     ))}
                   </div>
@@ -703,59 +740,70 @@ export default function POSPage() {
               </ScrollArea>
 
               {cart.length > 0 && (
-                <div className="border-t px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <Tag className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Endirim:</span>
-                    <div className="ml-auto flex items-center gap-1">
+                <div className="border-t bg-background/95 px-4 py-3 backdrop-blur">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                    <div className="flex items-center gap-2">
+                      <Tag className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm">Endirim</span>
+                    </div>
+                    <div className="ml-auto flex items-center gap-2">
                       <Input
                         type="number"
                         value={discount}
                         onChange={(event) => setDiscount(Math.min(100, Math.max(0, Number(event.target.value) || 0)))}
-                        className="h-8 w-16 text-center"
+                        className="h-10 w-20 rounded-xl text-center"
                       />
-                      <Percent className="h-4 w-4 text-muted-foreground" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-muted/50">
+                        <Percent className="h-4 w-4 text-muted-foreground" />
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              <div className="space-y-2 border-t px-4 py-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Ara cəm:</span>
-                  <span>{formatCurrency(subtotal)}</span>
-                </div>
-                {discount > 0 && (
-                  <div className="flex justify-between text-sm text-green-600">
-                    <span>Endirim ({discount}%):</span>
-                    <span>-{formatCurrency(discountAmount)}</span>
+              <div className="space-y-3 border-t px-4 py-4">
+                <div className="rounded-2xl bg-muted/40 p-4">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Ara cəm</span>
+                    <span>{formatCurrency(subtotal)}</span>
                   </div>
-                )}
-                <Separator />
-                <div className="flex justify-between text-lg font-bold">
-                  <span>Cəmi:</span>
-                  <span className="text-primary">{formatCurrency(total)}</span>
+                  {discount > 0 && (
+                    <div className="mt-2 flex justify-between text-sm text-green-600">
+                      <span>Endirim ({discount}%)</span>
+                      <span>-{formatCurrency(discountAmount)}</span>
+                    </div>
+                  )}
+                  <Separator className="my-3" />
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Yekun məbləğ</div>
+                      <div className="mt-1 text-2xl font-bold text-primary">{formatCurrency(total)}</div>
+                    </div>
+                    <Badge variant="outline" className="rounded-full px-3 py-1">
+                      {cart.length} məhsul
+                    </Badge>
+                  </div>
                 </div>
-              </div>
 
-              <div className="space-y-2 border-t p-4">
-                <Button className="h-12 w-full text-lg" disabled={cart.length === 0} onClick={openPayment}>
-                  <Calculator className="mr-2 h-5 w-5" />
-                  Ödənişə keç
-                </Button>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button variant="outline" size="sm" disabled={cart.length === 0} onClick={saveDraft}>
-                    <Receipt className="mr-1 h-4 w-4" />
-                    Saxla
+                <div className="space-y-2">
+                  <Button className="h-12 w-full rounded-2xl text-base font-semibold" disabled={cart.length === 0} onClick={openPayment}>
+                    <Calculator className="mr-2 h-5 w-5" />
+                    Ödənişə keç
                   </Button>
-                  <Button variant="outline" size="sm" disabled={cart.length === 0} onClick={switchToDebtMode}>
-                    <User className="mr-1 h-4 w-4" />
-                    Nisyə
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={focusScanner}>
-                    <Barcode className="mr-1 h-4 w-4" />
-                    Skan
-                  </Button>
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button variant="outline" size="sm" className="h-10 rounded-xl px-2" disabled={cart.length === 0} onClick={saveDraft}>
+                      <Receipt className="mr-1 h-4 w-4" />
+                      <span className="truncate">Saxla</span>
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-10 rounded-xl px-2" disabled={cart.length === 0} onClick={switchToDebtMode}>
+                      <User className="mr-1 h-4 w-4" />
+                      <span className="truncate">Nisyə</span>
+                    </Button>
+                    <Button variant="outline" size="sm" className="h-10 rounded-xl px-2" onClick={focusScanner}>
+                      <Barcode className="mr-1 h-4 w-4" />
+                      <span className="truncate">Skan</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -764,7 +812,7 @@ export default function POSPage() {
       </div>
 
       <Dialog open={isAddCustomerOpen} onOpenChange={setIsAddCustomerOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-lg rounded-3xl sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Yeni müştəri</DialogTitle>
             <DialogDescription>POS içindən sürətli müştəri yaradın.</DialogDescription>
@@ -791,7 +839,7 @@ export default function POSPage() {
       </Dialog>
 
       <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md rounded-3xl sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Ödəniş</DialogTitle>
             <DialogDescription>Ödəniş metodunu seçin və əməliyyatı tamamlayın</DialogDescription>
@@ -801,7 +849,7 @@ export default function POSPage() {
             <div className="grid grid-cols-2 gap-2">
               <Button
                 variant={paymentMethod === "cash" ? "default" : "outline"}
-                className="h-20 flex-col"
+                className="h-20 rounded-2xl flex-col"
                 onClick={() => selectPaymentMethod("cash")}
               >
                 <Banknote className="mb-1 h-6 w-6" />
@@ -809,7 +857,7 @@ export default function POSPage() {
               </Button>
               <Button
                 variant={paymentMethod === "bank" ? "default" : "outline"}
-                className="h-20 flex-col"
+                className="h-20 rounded-2xl flex-col"
                 onClick={() => selectPaymentMethod("bank")}
               >
                 <CreditCard className="mb-1 h-6 w-6" />
@@ -826,10 +874,10 @@ export default function POSPage() {
             </div>
 
             <Field label="Ödəniş statusu">
-              <div className="flex gap-2">
-                <Button variant={paymentStatus === "paid" ? "default" : "outline"} onClick={() => selectPaymentStatus("paid")}>Tam</Button>
-                <Button variant={paymentStatus === "partial" ? "default" : "outline"} onClick={() => selectPaymentStatus("partial")}>Qismən</Button>
-                <Button variant={paymentStatus === "debt" ? "default" : "outline"} onClick={() => selectPaymentStatus("debt")}>Borc</Button>
+              <div className="grid grid-cols-3 gap-2">
+                <Button variant={paymentStatus === "paid" ? "default" : "outline"} className="rounded-xl px-2" onClick={() => selectPaymentStatus("paid")}>Tam</Button>
+                <Button variant={paymentStatus === "partial" ? "default" : "outline"} className="rounded-xl px-2" onClick={() => selectPaymentStatus("partial")}>Qismən</Button>
+                <Button variant={paymentStatus === "debt" ? "default" : "outline"} className="rounded-xl px-2" onClick={() => selectPaymentStatus("debt")}>Borc</Button>
               </div>
             </Field>
 
@@ -853,8 +901,8 @@ export default function POSPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Ləğv et</Button>
-            <Button onClick={() => void submitSale()}>
+            <Button variant="outline" className="rounded-xl" onClick={() => setIsPaymentDialogOpen(false)}>Ləğv et</Button>
+            <Button className="rounded-xl" onClick={() => void submitSale()}>
               {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Check className="mr-2 h-4 w-4" />}
               Təsdiqlə
             </Button>
