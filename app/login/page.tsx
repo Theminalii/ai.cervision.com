@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { LOGGED_OUT_KEY, TOKEN_KEY, backendFetch, loginToBackend } from "@/lib/backend-api"
+import { backendFetch, clearLoggedOutFlag, loginToBackend, setStoredToken } from "@/lib/backend-api"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -50,8 +50,8 @@ export default function LoginPage() {
         throw new Error("Email və ya şifrə yanlışdır.")
       }
 
-      window.localStorage.setItem(TOKEN_KEY, token)
-      window.localStorage.removeItem(LOGGED_OUT_KEY)
+      setStoredToken(token)
+      clearLoggedOutFlag()
       router.push(await resolveDestination(token))
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Giriş alınmadı.")

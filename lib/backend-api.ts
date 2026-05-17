@@ -3,6 +3,76 @@ export const TOKEN_KEY = "bestsol-backend-token"
 export const LOGGED_OUT_KEY = "bestsol-logged-out"
 export const API_BASE_STORAGE_KEY = "bestsol-backend-api-base"
 
+function getSessionStorage() {
+  if (typeof window === "undefined") {
+    return null
+  }
+
+  return window.sessionStorage
+}
+
+function clearLegacyAuthStorage() {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  window.localStorage.removeItem(TOKEN_KEY)
+  window.localStorage.removeItem(LOGGED_OUT_KEY)
+}
+
+export function getStoredToken() {
+  const storage = getSessionStorage()
+  if (!storage) {
+    return null
+  }
+
+  clearLegacyAuthStorage()
+  return storage.getItem(TOKEN_KEY)
+}
+
+export function setStoredToken(token: string) {
+  const storage = getSessionStorage()
+  if (!storage) {
+    return
+  }
+
+  clearLegacyAuthStorage()
+  storage.setItem(TOKEN_KEY, token)
+}
+
+export function clearStoredToken() {
+  const storage = getSessionStorage()
+  if (!storage) {
+    return
+  }
+
+  storage.removeItem(TOKEN_KEY)
+  clearLegacyAuthStorage()
+}
+
+export function getLoggedOutFlag() {
+  const storage = getSessionStorage()
+  return storage?.getItem(LOGGED_OUT_KEY) ?? null
+}
+
+export function setLoggedOutFlag() {
+  const storage = getSessionStorage()
+  if (!storage) {
+    return
+  }
+
+  storage.setItem(LOGGED_OUT_KEY, "1")
+}
+
+export function clearLoggedOutFlag() {
+  const storage = getSessionStorage()
+  if (!storage) {
+    return
+  }
+
+  storage.removeItem(LOGGED_OUT_KEY)
+}
+
 function getNetworkErrorMessage() {
   return "Backend serverinə qoşulmaq olmadı. Lokal mühitdə `backend` tərəfində `php artisan serve` işlədiyini, deploy mühitində isə `NEXT_PUBLIC_BACKEND_API_URL` dəyərinin düzgün verildiyini yoxlayın."
 }
@@ -127,17 +197,17 @@ export async function loginToBackend(email: string, password: string, deviceName
 }
 
 export async function ensureBackendToken(deviceName = "bestsol-web") {
-  const storedToken = window.localStorage.getItem(TOKEN_KEY)
+  const storedToken = getStoredToken()
   if (storedToken) {
     return storedToken
   }
 
-  if (window.localStorage.getItem(LOGGED_OUT_KEY) === "1") {
+  if (getLoggedOutFlag() === "1") {
     window.location.href = "/login"
     throw new Error("Giriş tələb olunur.")
   }
 
-  window.localStorage.setItem(LOGGED_OUT_KEY, "1")
+  setLoggedOutFlag()
   window.location.href = `/login?device=${encodeURIComponent(deviceName)}`
   throw new Error("Giriş tələb olunur.")
 }
@@ -163,8 +233,8 @@ export async function backendFetch(path: string, token: string, init?: RequestIn
     }
 
     if (response.status === 401) {
-      window.localStorage.removeItem(TOKEN_KEY)
-      window.localStorage.setItem(LOGGED_OUT_KEY, "1")
+      clearStoredToken()
+      setLoggedOutFlag()
       throw new Error("Sessiya bitib. Yenidən qoşulun.")
     }
 
@@ -196,6 +266,6 @@ export async function backendFetch(path: string, token: string, init?: RequestIn
 }
 
 export function clearBackendSession() {
-  window.localStorage.removeItem(TOKEN_KEY)
-  window.localStorage.setItem(LOGGED_OUT_KEY, "1")
+  clearStoredToken()
+  setLoggedOutFlag()
 }

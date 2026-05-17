@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useParams, useSearchParams } from "next/navigation"
 import { Header } from "@/components/layout/header"
-import { TOKEN_KEY, backendFetch, ensureBackendToken } from "@/lib/backend-api"
+import { backendFetch, ensureBackendToken, getStoredToken } from "@/lib/backend-api"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -144,7 +144,7 @@ export default function SaleDetailsPage() {
   }
 
   useEffect(() => {
-    const storedToken = window.localStorage.getItem(TOKEN_KEY)
+    const storedToken = getStoredToken()
     const timer = window.setTimeout(() => {
       void bootstrap(storedToken)
     }, 0)

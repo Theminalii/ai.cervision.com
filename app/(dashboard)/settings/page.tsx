@@ -4,16 +4,19 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useTheme } from "next-themes"
 import {
   API_BASE,
-  LOGGED_OUT_KEY,
-  TOKEN_KEY,
   backendFetch,
+  clearLoggedOutFlag,
   clearPreferredApiBase,
+  clearStoredToken,
   ensureBackendToken,
   getPreferredApiBase,
   getPreferredApiOrigin,
+  getStoredToken,
   loginToBackend,
   normalizeApiBase,
+  setLoggedOutFlag,
   setPreferredApiBase,
+  setStoredToken,
 } from "@/lib/backend-api"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -278,7 +281,7 @@ export default function SettingsPage() {
     const frame = window.requestAnimationFrame(() => {
       setMounted(true)
       setApiBaseInput(getPreferredApiBase())
-      const storedToken = window.localStorage.getItem(TOKEN_KEY)
+      const storedToken = getStoredToken()
       void bootstrap(storedToken)
     })
 
@@ -313,8 +316,8 @@ export default function SettingsPage() {
     } catch (error) {
       if (error instanceof Error && error.message.includes("Sessiya bitib")) {
         setToken(null)
-        window.localStorage.removeItem(TOKEN_KEY)
-        window.localStorage.setItem(LOGGED_OUT_KEY, "1")
+        clearStoredToken()
+        setLoggedOutFlag()
       }
 
       throw error
@@ -697,15 +700,15 @@ export default function SettingsPage() {
       const normalizedBase = normalizeApiBase(apiBaseInput)
       setPreferredApiBase(normalizedBase)
       setApiBaseInput(normalizedBase)
-      window.localStorage.removeItem(LOGGED_OUT_KEY)
+      clearLoggedOutFlag()
       const newToken = await loginToBackend(connectForm.email, connectForm.password, "bestsol-settings-manual-web")
       if (!newToken) {
         throw new Error("Email və ya şifrə yanlışdır.")
       }
 
       setToken(newToken)
-      window.localStorage.setItem(TOKEN_KEY, newToken)
-      window.localStorage.removeItem(LOGGED_OUT_KEY)
+      setStoredToken(newToken)
+      clearLoggedOutFlag()
       await loadAll(newToken)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Bağlantı qurulmadı.")
@@ -715,7 +718,7 @@ export default function SettingsPage() {
   }
 
   const handleReconnect = async () => {
-    await bootstrap(window.localStorage.getItem(TOKEN_KEY))
+    await bootstrap(getStoredToken())
   }
 
   const resetConnection = async () => {
@@ -723,8 +726,8 @@ export default function SettingsPage() {
     setSaveMessage(null)
     setToken(null)
     clearPreferredApiBase()
-    window.localStorage.removeItem(TOKEN_KEY)
-    window.localStorage.removeItem(LOGGED_OUT_KEY)
+    clearStoredToken()
+    clearLoggedOutFlag()
     const fallbackBase = normalizeApiBase(API_BASE)
     setApiBaseInput(fallbackBase)
     await bootstrap(null)

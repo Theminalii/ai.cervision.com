@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/layout/header"
-import { TOKEN_KEY, backendFetch, ensureBackendToken, loginToBackend } from "@/lib/backend-api"
+import { backendFetch, ensureBackendToken, getStoredToken, loginToBackend } from "@/lib/backend-api"
 import { ExcelImportButton } from "@/components/import/excel-import-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -197,7 +197,7 @@ export default function NewSalePage() {
   }
 
   useEffect(() => {
-    const storedToken = window.localStorage.getItem(TOKEN_KEY)
+    const storedToken = getStoredToken()
     const timer = window.setTimeout(() => {
       void bootstrap(storedToken)
     }, 0)
