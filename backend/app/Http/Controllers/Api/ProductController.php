@@ -8,6 +8,7 @@ use App\Http\Resources\ProductResource;
 use App\Models\Product;
 use App\Models\Stock;
 use App\Services\StockService;
+use App\Support\InlineImage;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -118,6 +119,12 @@ class ProductController extends Controller
 
     public function destroy(Product $product)
     {
+        if ($product->saleItems()->exists() || $product->purchaseItems()->exists() || $product->stockMovements()->exists()) {
+            return response()->json([
+                'message' => 'Satış, satınalma və ya stok tarixçəsi olan məhsul silinə bilməz.',
+            ], 422);
+        }
+
         $product->delete();
 
         return response()->json(['message' => 'Məhsul silindi.']);
@@ -127,15 +134,22 @@ class ProductController extends Controller
     {
         if ($request->hasFile('image')) {
             $request->validate([
-                'image' => ['required', 'image', 'max:2048'],
+                'image' => InlineImage::rules(),
             ]);
 
             $file = $request->file('image');
-            $contents = base64_encode((string) file_get_contents($file->getRealPath()));
-            $image = 'data:' . $file->getMimeType() . ';base64,' . $contents;
+            $image = InlineImage::fromUpload($file);
         } else {
             $request->validate([
-                'image' => ['required', 'string'],
+                'image' => [
+                    'required',
+                    'string',
+                    function (string $attribute, mixed $value, \Closure $fail): void {
+                        if (! is_string($value) || ! InlineImage::isSafeDataUrl($value)) {
+                            $fail('Yalnız JPEG, PNG, WEBP və ya GIF formatında təhlükəsiz şəkil qəbul edilir.');
+                        }
+                    },
+                ],
             ]);
 
             $image = $request->string('image')->toString();

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Header } from "@/components/layout/header"
 import { backendFetch, ensureBackendToken } from "@/lib/backend-api"
+import { ExcelImportButton } from "@/components/import/excel-import-button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -90,26 +91,7 @@ export default function ProductsPage() {
   const [sortField, setSortField] = useState<"name" | "product_code" | "cash_sale_price">("name")
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc")
 
-  useEffect(() => {
-    void bootstrap()
-  }, [])
-
-  const bootstrap = async () => {
-    setIsLoading(true)
-    setErrorMessage(null)
-
-    try {
-      const activeToken = await ensureBackendToken("bestsol-products-web")
-      setToken(activeToken)
-      await loadData(activeToken)
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Məhsullar yüklənmədi.")
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const loadData = async (activeToken: string) => {
+  async function loadData(activeToken: string) {
     const [productsResponse, categoriesResponse, brandsResponse] = await Promise.all([
       backendFetch("/products?per_page=300&sort=id&direction=desc", activeToken),
       backendFetch("/categories", activeToken),
@@ -124,6 +106,29 @@ export default function ProductsPage() {
     setCategories((categoriesJson.data ?? []).map((item: Category) => ({ id: item.id, name: item.name })))
     setBrands((brandsJson.data ?? []).map((item: Brand) => ({ id: item.id, name: item.name })))
   }
+
+  async function bootstrap() {
+    setIsLoading(true)
+    setErrorMessage(null)
+
+    try {
+      const activeToken = await ensureBackendToken("bestsol-products-web")
+      setToken(activeToken)
+      await loadData(activeToken)
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Məhsullar yüklənmədi.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const deleteProduct = async (productId: number) => {
     if (!token) return
@@ -269,6 +274,7 @@ export default function ProductsPage() {
                 <Grid3X3 className="h-4 w-4" />
               </Button>
             </div>
+            <ExcelImportButton target="products" token={token} onImported={bootstrap} />
             <Link href="/products/new">
               <Button size="sm" className="h-9 gap-1.5">
                 <Plus className="h-4 w-4" />

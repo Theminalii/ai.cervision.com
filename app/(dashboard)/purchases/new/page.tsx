@@ -96,11 +96,7 @@ export default function NewPurchasePage() {
   const [receivedQty, setReceivedQty] = useState<number>(1)
   const [unitPrice, setUnitPrice] = useState<number>(0)
 
-  useEffect(() => {
-    void bootstrap()
-  }, [])
-
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -124,6 +120,14 @@ export default function NewPurchasePage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const addItem = () => {
     setErrorMessage(null)

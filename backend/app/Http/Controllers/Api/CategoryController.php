@@ -35,6 +35,14 @@ class CategoryController extends Controller
 
     public function destroy(Category $category)
     {
+        if ($category->children()->exists()) {
+            return response()->json(['message' => 'Alt kateqoriyaları olan kateqoriya silinə bilməz.'], 422);
+        }
+
+        if ($category->products()->exists()) {
+            return response()->json(['message' => 'Məhsullarla əlaqəli kateqoriya silinə bilməz.'], 422);
+        }
+
         $category->delete();
 
         return response()->json(['message' => 'Kateqoriya silindi.']);

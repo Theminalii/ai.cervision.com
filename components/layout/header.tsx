@@ -33,41 +33,57 @@ type HeaderStock = {
   product: { name: string } | null
 }
 
+type InAppNotification = {
+  title: string
+  body: string
+  tone: "warning" | "success" | "info"
+  created_at: string
+}
+
 export function Header({ title = "Ümumi Baxış", subtitle }: HeaderProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<FrontendUser | null>(null)
   const [recentSales, setRecentSales] = useState<HeaderSale[]>([])
   const [lowStock, setLowStock] = useState<HeaderStock[]>([])
+  const [inAppNotifications, setInAppNotifications] = useState<InAppNotification[]>([])
 
-  useEffect(() => {
-    void bootstrap()
-  }, [])
-
-  const bootstrap = async () => {
+  async function bootstrap() {
     try {
       const token = await ensureBackendToken("bestsol-header-web")
-      const [meResponse, recentSalesResponse, lowStockResponse] = await Promise.all([
+      const [meResponse, recentSalesResponse, lowStockResponse, notificationsResponse] = await Promise.all([
         backendFetch("/me", token),
         backendFetch("/dashboard/recent-sales", token),
         backendFetch("/dashboard/low-stock", token),
+        backendFetch("/dashboard/notifications", token),
       ])
 
       const meJson = await meResponse.json()
       const recentSalesJson = await recentSalesResponse.json()
       const lowStockJson = await lowStockResponse.json()
+      const notificationsJson = await notificationsResponse.json()
 
       setUser(meJson.data ?? meJson)
       setRecentSales(recentSalesJson.data ?? [])
       setLowStock(lowStockJson.data ?? [])
+      setInAppNotifications(notificationsJson.data ?? [])
     } catch {
       setUser(null)
       setRecentSales([])
       setLowStock([])
+      setInAppNotifications([])
     } finally {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const logout = async () => {
     try {
@@ -89,6 +105,11 @@ export function Header({ title = "Ümumi Baxış", subtitle }: HeaderProps) {
     .toUpperCase() ?? "BS"
 
   const notifications = [
+    ...inAppNotifications.slice(0, 3).map((item) => ({
+      title: item.title,
+      body: item.body,
+      tone: item.tone,
+    })),
     ...lowStock.slice(0, 2).map((item) => ({
       title: "Az stok xəbərdarlığı",
       body: `${item.product?.name ?? "Məhsul"} - ${item.real_quantity} ədəd qalıb`,
@@ -173,7 +194,7 @@ export function Header({ title = "Ümumi Baxış", subtitle }: HeaderProps) {
                   <DropdownMenuItem key={`${notification.title}-${index}`} className="flex cursor-pointer flex-col items-start gap-1 py-3">
                     <div className="flex items-center gap-2">
                       <div className={`h-2 w-2 rounded-full ${
-                        notification.tone === "warning" ? "bg-warning" : "bg-success"
+                        notification.tone === "warning" ? "bg-warning" : notification.tone === "success" ? "bg-success" : "bg-primary"
                       }`} />
                       <span className="text-[13px] font-medium">{notification.title}</span>
                     </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -21,6 +21,8 @@ import {
   Building2,
   ChevronRight,
   Store,
+  Sparkles,
+  Smartphone,
 } from "lucide-react"
 
 const navigation = [
@@ -85,6 +87,45 @@ const navigation = [
     icon: BarChart3,
     permission: "reports_view",
   },
+  {
+    name: "AI Agent",
+    href: "/ai-agent",
+    icon: Sparkles,
+    permission: "users_manage",
+  },
+  {
+    name: "Omnichannel",
+    icon: Smartphone,
+    permission: "crm_view",
+    children: [
+      { name: "Inbox", href: "/omnichannel/inbox", permission: "crm_view" },
+      { name: "Conversations", href: "/omnichannel", permission: "crm_view" },
+      { name: "WhatsApp", href: "/settings/whatsapp", permission: "users_manage" },
+      { name: "Mail", href: "/settings/gmail", permission: "users_manage" },
+      { name: "Instagram", href: "/settings/instagram", permission: "users_manage" },
+      { name: "Automation", href: "/omnichannel/automation", permission: "users_manage" },
+      { name: "AI Rules", href: "/settings/ai", permission: "users_manage" },
+      { name: "Logs", href: "/omnichannel/logs", permission: "users_manage" },
+      { name: "Settings", href: "/omnichannel/settings", permission: "crm_view" },
+    ],
+  },
+  {
+    name: "CRM",
+    icon: Users,
+    permission: "crm_view",
+    children: [
+      { name: "Dashboard", href: "/crm", permission: "crm_view" },
+      { name: "Müştərilər", href: "/crm/customers", permission: "crm_view" },
+      { name: "Lead-lər", href: "/crm/leads", permission: "crm_view" },
+      { name: "Deal Pipeline", href: "/crm/deals", permission: "crm_view" },
+      { name: "Tapşırıqlar", href: "/crm/tasks", permission: "crm_view" },
+      { name: "Fəaliyyətlər", href: "/crm/activities", permission: "crm_view" },
+      { name: "Şirkətlər", href: "/crm/companies", permission: "crm_view" },
+      { name: "Kontaktlar", href: "/crm/contacts", permission: "crm_view" },
+      { name: "Hesabatlar", href: "/crm/reports", permission: "crm_view" },
+      { name: "AI CRM Assistant", href: "/crm/ai", permission: "crm_view" },
+    ],
+  },
 ]
 
 const secondaryNav = [
@@ -94,16 +135,13 @@ const secondaryNav = [
   { name: "Parametrlər", href: "/settings", icon: Settings, permission: "users_manage" },
 ]
 
+type NavigationItem = (typeof navigation)[number]
+
 export function Sidebar() {
   const pathname = usePathname()
   const [expandedItems, setExpandedItems] = useState<string[]>(["Məhsullar", "Satış"])
   const [user, setUser] = useState<FrontendUser | null>(null)
-
-  useEffect(() => {
-    void loadCurrentUser()
-  }, [])
-
-  const loadCurrentUser = async () => {
+  const loadCurrentUser = useCallback(async () => {
     try {
       const token = await ensureBackendToken("bestsol-sidebar-web")
       const response = await backendFetch("/me", token)
@@ -112,19 +150,27 @@ export function Sidebar() {
     } catch {
       setUser(null)
     }
-  }
+  }, [])
 
-  const canAccess = (permission?: string) => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadCurrentUser()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [loadCurrentUser])
+
+  const canAccess = useCallback((permission?: string) => {
     if (!permission) {
       return true
     }
 
     if (!user) {
-      return true
+      return false
     }
 
     return hasPermission(user, permission)
-  }
+  }, [user])
 
   const visibleNavigation = useMemo(() => {
     return navigation
@@ -143,12 +189,12 @@ export function Sidebar() {
 
         return canAccess(item.permission) ? item : null
       })
-      .filter(Boolean)
-  }, [user])
+      .filter((item): item is NavigationItem => item !== null)
+  }, [canAccess])
 
   const visibleSecondaryNav = useMemo(() => {
     return secondaryNav.filter((item) => canAccess(item.permission))
-  }, [user])
+  }, [canAccess])
 
   const toggleExpand = (name: string) => {
     setExpandedItems((prev) =>

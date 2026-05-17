@@ -110,11 +110,7 @@ export default function StockPage() {
     note: "",
   })
 
-  useEffect(() => {
-    void bootstrap()
-  }, [])
-
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -129,7 +125,15 @@ export default function StockPage() {
     }
   }
 
-  const loadData = async (activeToken: string) => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  async function loadData(activeToken: string) {
     const [stocksResponse, categoriesResponse, movementsResponse] = await Promise.all([
       backendFetch("/stocks?per_page=300", activeToken),
       backendFetch("/categories", activeToken),

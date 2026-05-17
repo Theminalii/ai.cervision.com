@@ -7,10 +7,14 @@ use App\Http\Resources\PurchaseResource;
 use App\Http\Resources\SaleResource;
 use App\Http\Resources\StockResource;
 use App\Services\DashboardService;
+use App\Services\SettingsNotificationService;
 
 class DashboardController extends Controller
 {
-    public function __construct(protected DashboardService $dashboardService)
+    public function __construct(
+        protected DashboardService $dashboardService,
+        protected SettingsNotificationService $notificationService,
+    )
     {
     }
 
@@ -42,5 +46,12 @@ class DashboardController extends Controller
     public function lowStock()
     {
         return StockResource::collection($this->dashboardService->lowStock());
+    }
+
+    public function notifications()
+    {
+        return response()->json([
+            'data' => $this->notificationService->getInAppNotifications(),
+        ]);
     }
 }

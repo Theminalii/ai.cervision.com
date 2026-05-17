@@ -108,13 +108,9 @@ function ProductFormPage() {
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
 
-  useEffect(() => {
-    void bootstrap()
-  }, [editId])
-
   const title = useMemo(() => (isEditMode ? "Məhsulu Redaktə Et" : "Yeni Məhsul"), [isEditMode])
 
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -165,6 +161,14 @@ function ProductFormPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [editId])
 
   const updateForm = <K extends keyof ProductForm>(key: K, value: ProductForm[K]) => {
     setForm((current) => ({

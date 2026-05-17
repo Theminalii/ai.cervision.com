@@ -76,11 +76,7 @@ export default function ProductDetailPage() {
   const [product, setProduct] = useState<ProductResponse | null>(null)
   const [movements, setMovements] = useState<StockMovement[]>([])
 
-  useEffect(() => {
-    void bootstrap()
-  }, [productId])
-
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -102,6 +98,14 @@ export default function ProductDetailPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [productId])
 
   if (isLoading) {
     return (

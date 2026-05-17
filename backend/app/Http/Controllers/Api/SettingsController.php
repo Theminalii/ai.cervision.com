@@ -9,6 +9,7 @@ use App\Http\Requests\Settings\UpdateCompanySettingsRequest;
 use App\Http\Requests\Settings\UpdateNotificationSettingsRequest;
 use App\Services\SettingsNotificationService;
 use App\Services\SystemSettingsService;
+use App\Support\InlineImage;
 use Throwable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -32,7 +33,7 @@ class SettingsController extends Controller
                 'address' => 'Bakı şəhəri, Nəsimi rayonu',
                 'currency' => 'AZN',
                 'language' => 'az',
-                'timezone' => 'asia-baku',
+                'timezone' => 'Asia/Baku',
                 'invoice_template' => 'standard',
                 'receipt_size' => '80mm',
                 'auto_print_receipt' => true,
@@ -64,6 +65,7 @@ class SettingsController extends Controller
                     'payment' => true,
                     'weekly_summary' => true,
                     'failed_login' => true,
+                    'ai_agent' => true,
                 ],
             ]),
             'appearance' => $this->settingsService->get('appearance_settings', [
@@ -96,12 +98,11 @@ class SettingsController extends Controller
     public function uploadLogo(Request $request)
     {
         $request->validate([
-            'logo' => ['required', 'image', 'max:2048'],
+            'logo' => InlineImage::rules(),
         ]);
 
         $file = $request->file('logo');
-        $contents = base64_encode((string) file_get_contents($file->getRealPath()));
-        $dataUrl = 'data:' . $file->getMimeType() . ';base64,' . $contents;
+        $dataUrl = InlineImage::fromUpload($file);
 
         $companySettings = $this->settingsService->get('company_settings', []);
         $companySettings['logo_url'] = $dataUrl;

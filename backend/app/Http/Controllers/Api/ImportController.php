@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Import\ExcelImportCommitRequest;
 use App\Http\Requests\Import\ImportPayloadRequest;
 use App\Services\ImportService;
 
@@ -52,5 +53,20 @@ class ImportController extends Controller
         $this->importService->importCoefficients($request->data);
 
         return response()->json(['message' => 'Əmsallar import edildi.']);
+    }
+
+    public function excelProducts(ExcelImportCommitRequest $request)
+    {
+        return response()->json($this->importService->importExcelProducts($request->validated('rows'), $request->user()));
+    }
+
+    public function excelSales(ExcelImportCommitRequest $request)
+    {
+        return response()->json($this->importService->importExcelSales($request->validated('rows'), $request->user()));
+    }
+
+    public function excelPurchases(ExcelImportCommitRequest $request)
+    {
+        return response()->json($this->importService->importExcelPurchases($request->validated('rows'), $request->user()));
     }
 }

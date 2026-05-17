@@ -61,6 +61,21 @@ class User extends Authenticatable
         return $this->hasMany(InitialBalance::class, 'imported_by');
     }
 
+    public function crmLeads(): HasMany
+    {
+        return $this->hasMany(CrmLead::class, 'owner_user_id');
+    }
+
+    public function crmDeals(): HasMany
+    {
+        return $this->hasMany(CrmDeal::class, 'owner_user_id');
+    }
+
+    public function crmTasks(): HasMany
+    {
+        return $this->hasMany(CrmTask::class, 'owner_user_id');
+    }
+
     public function hasPermission(string $permissionKey): bool
     {
         if ($this->role?->name === 'Super Admin') {

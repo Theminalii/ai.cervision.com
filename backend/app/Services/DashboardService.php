@@ -13,7 +13,7 @@ class DashboardService
     {
         return [
             'today_sales' => (float) Sale::whereDate('sale_date', today())->sum('total_amount'),
-            'monthly_sales' => (float) Sale::whereMonth('sale_date', now()->month)->sum('total_amount'),
+            'monthly_sales' => (float) Sale::whereYear('sale_date', now()->year)->whereMonth('sale_date', now()->month)->sum('total_amount'),
             'customer_debt' => (float) \App\Models\Customer::sum('total_debt'),
             'supplier_debt' => (float) \App\Models\Supplier::sum('total_debt'),
             'real_stock_value' => (float) Stock::query()->join('products', 'products.id', '=', 'stocks.product_id')->selectRaw('SUM(stocks.real_quantity * products.cost_price) as total')->value('total'),
@@ -24,21 +24,31 @@ class DashboardService
     public function salesChart(): array
     {
         return Sale::query()
-            ->selectRaw("strftime('%Y-%m', sale_date) as month, SUM(total_amount) as total")
-            ->groupBy('month')
-            ->orderBy('month')
-            ->get()
-            ->toArray();
+            ->whereDate('sale_date', '>=', now()->subMonths(11)->startOfMonth()->toDateString())
+            ->orderBy('sale_date')
+            ->get(['sale_date', 'total_amount'])
+            ->groupBy(fn (Sale $sale) => $sale->sale_date->format('Y-m'))
+            ->map(fn ($items, string $month) => [
+                'month' => $month,
+                'total' => round((float) $items->sum('total_amount'), 2),
+            ])
+            ->values()
+            ->all();
     }
 
     public function expenseChart(): array
     {
         return Expense::query()
-            ->selectRaw("strftime('%Y-%m', expense_date) as month, SUM(amount) as total")
-            ->groupBy('month')
-            ->orderBy('month')
-            ->get()
-            ->toArray();
+            ->whereDate('expense_date', '>=', now()->subMonths(11)->startOfMonth()->toDateString())
+            ->orderBy('expense_date')
+            ->get(['expense_date', 'amount'])
+            ->groupBy(fn (Expense $expense) => $expense->expense_date->format('Y-m'))
+            ->map(fn ($items, string $month) => [
+                'month' => $month,
+                'total' => round((float) $items->sum('amount'), 2),
+            ])
+            ->values()
+            ->all();
     }
 
     public function recentSales()

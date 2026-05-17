@@ -61,6 +61,22 @@ DB_PASSWORD=
 ```bash
 php artisan route:list --path=api
 php artisan test
+composer run deploy:backend:first
+composer run deploy:backend:subsequent
+```
+
+### Production Deploy Shortcuts
+
+First deploy:
+
+```bash
+composer run deploy:backend:first
+```
+
+Subsequent deploy:
+
+```bash
+composer run deploy:backend:subsequent
 ```
 
 ### Main API Areas

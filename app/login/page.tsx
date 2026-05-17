@@ -14,11 +14,16 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [form, setForm] = useState({
-    email: "admin@bestsol.az",
-    password: "password",
+    email: "",
+    password: "",
   })
 
   const submit = async () => {
+    if (!form.email.trim() || !form.password) {
+      setErrorMessage("Email və şifrə daxil edin.")
+      return
+    }
+
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -53,11 +58,26 @@ export default function LoginPage() {
           )}
           <div className="space-y-2">
             <Label>E-poçt</Label>
-            <Input value={form.email} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
+            <Input
+              type="email"
+              autoComplete="username"
+              value={form.email}
+              onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+            />
           </div>
           <div className="space-y-2">
             <Label>Şifrə</Label>
-            <Input type="password" value={form.password} onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))} />
+            <Input
+              type="password"
+              autoComplete="current-password"
+              value={form.password}
+              onChange={(event) => setForm((current) => ({ ...current, password: event.target.value }))}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void submit()
+                }
+              }}
+            />
           </div>
           <Button className="w-full" onClick={submit} disabled={isLoading}>
             {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}

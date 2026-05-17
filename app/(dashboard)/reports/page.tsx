@@ -205,7 +205,11 @@ export default function ReportsPage() {
   const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null)
 
   useEffect(() => {
-    void bootstrap()
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [])
 
   useEffect(() => {
@@ -214,7 +218,7 @@ export default function ReportsPage() {
     }
   }, [activeReport])
 
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -256,7 +260,7 @@ export default function ReportsPage() {
     return params.toString()
   }
 
-  const fetchReport = async (kind: ReportKind, existingToken?: string) => {
+  async function fetchReport(kind: ReportKind, existingToken?: string) {
     setIsRefreshing(true)
     setErrorMessage(null)
 

@@ -112,7 +112,7 @@ const unwrapCollection = <T,>(payload: T[] | ResourceResponse<T> | null | undefi
   return []
 }
 
-const flattenCategories = (items: Category[]) =>
+const flattenCategories = (items: Category[]): Category[] =>
   items.flatMap((item) => [item, ...(item.children ? flattenCategories(item.children) : [])])
 
 const formatCurrency = (value: number) =>
@@ -156,27 +156,14 @@ export default function POSPage() {
   const [customerForm, setCustomerForm] = useState<CustomerForm>(emptyCustomerForm())
 
   useEffect(() => {
-    void bootstrap()
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
   }, [])
 
-  useEffect(() => {
-    setPaymentMethod(saleType === "cash" ? "cash" : "bank")
-    setCart((current) =>
-      current.map((item) => {
-        const product = products.find((entry) => entry.id === item.id)
-        if (!product) return item
-        return {
-          ...item,
-          price: saleType === "cash" ? Number(product.cash_sale_price) : Number(product.official_sale_price),
-          availableStock: saleType === "cash"
-            ? Number(product.stock?.real_quantity ?? 0)
-            : Number(product.stock?.official_quantity ?? 0),
-        }
-      }),
-    )
-  }, [products, saleType])
-
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
     try {
@@ -203,6 +190,25 @@ export default function POSPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const updateSaleType = (value: "cash" | "official") => {
+    setSaleType(value)
+    setPaymentMethod(value === "cash" ? "cash" : "bank")
+    setCart((current) =>
+      current.map((item) => {
+        const product = products.find((entry) => entry.id === item.id)
+        if (!product) return item
+
+        return {
+          ...item,
+          price: value === "cash" ? Number(product.cash_sale_price) : Number(product.official_sale_price),
+          availableStock: value === "cash"
+            ? Number(product.stock?.real_quantity ?? 0)
+            : Number(product.stock?.official_quantity ?? 0),
+        }
+      }),
+    )
   }
 
   const filteredProducts = useMemo(() => {
@@ -333,6 +339,12 @@ export default function POSPage() {
       })
       return
     }
+    if (paymentStatus === "paid" && paymentMethod === "cash") {
+      setReceivedAmount(String(total))
+    }
+    if (paymentStatus === "partial" && !paidAmount) {
+      setPaidAmount(String(total))
+    }
     setIsPaymentDialogOpen(true)
   }
 
@@ -385,7 +397,8 @@ export default function POSPage() {
           status: "active",
         }),
       })
-      const customer = (await response.json()) as Customer
+      const payload = await response.json()
+      const customer = (payload.data ?? payload) as Customer
       setCustomers((current) => [customer, ...current])
       setSelectedCustomer(String(customer.id))
       setCustomerForm(emptyCustomerForm())
@@ -446,7 +459,8 @@ export default function POSPage() {
           })),
         }),
       })
-      const sale = await response.json()
+      const payload = await response.json()
+      const sale = payload.data ?? payload
       setIsPaymentDialogOpen(false)
       clearCart()
       toast({
@@ -480,6 +494,38 @@ export default function POSPage() {
     )
   }
 
+  const selectPaymentMethod = (method: "cash" | "bank") => {
+    setPaymentMethod(method)
+    if (paymentStatus === "paid") {
+      if (method === "cash") {
+        setReceivedAmount(String(total))
+      } else {
+        setReceivedAmount("")
+      }
+    }
+  }
+
+  const selectPaymentStatus = (status: "paid" | "partial" | "debt") => {
+    setPaymentStatus(status)
+
+    if (status === "paid") {
+      setPaidAmount("")
+      if (paymentMethod === "cash") {
+        setReceivedAmount(String(total))
+      }
+      return
+    }
+
+    if (status === "partial") {
+      setPaidAmount((current) => current || String(total))
+      setReceivedAmount("")
+      return
+    }
+
+    setPaidAmount("")
+    setReceivedAmount("")
+  }
+
   return (
     <div className="flex min-h-screen flex-col">
       <Header title="POS" subtitle="Kassa satışları və sürətli əməliyyatlar" />
@@ -505,11 +551,11 @@ export default function POSPage() {
                     className="pl-9"
                   />
                 </div>
-                <Button variant={saleType === "cash" ? "default" : "outline"} onClick={() => setSaleType("cash")}>
+                <Button variant={saleType === "cash" ? "default" : "outline"} onClick={() => updateSaleType("cash")}>
                   <Banknote className="mr-2 h-4 w-4" />
                   Nağd satış
                 </Button>
-                <Button variant={saleType === "official" ? "default" : "outline"} onClick={() => setSaleType("official")}>
+                <Button variant={saleType === "official" ? "default" : "outline"} onClick={() => updateSaleType("official")}>
                   <CreditCard className="mr-2 h-4 w-4" />
                   Rəsmi satış
                 </Button>
@@ -756,7 +802,7 @@ export default function POSPage() {
               <Button
                 variant={paymentMethod === "cash" ? "default" : "outline"}
                 className="h-20 flex-col"
-                onClick={() => setPaymentMethod("cash")}
+                onClick={() => selectPaymentMethod("cash")}
               >
                 <Banknote className="mb-1 h-6 w-6" />
                 <span>Nağd</span>
@@ -764,7 +810,7 @@ export default function POSPage() {
               <Button
                 variant={paymentMethod === "bank" ? "default" : "outline"}
                 className="h-20 flex-col"
-                onClick={() => setPaymentMethod("bank")}
+                onClick={() => selectPaymentMethod("bank")}
               >
                 <CreditCard className="mb-1 h-6 w-6" />
                 <span>Bank</span>
@@ -781,9 +827,9 @@ export default function POSPage() {
 
             <Field label="Ödəniş statusu">
               <div className="flex gap-2">
-                <Button variant={paymentStatus === "paid" ? "default" : "outline"} onClick={() => setPaymentStatus("paid")}>Tam</Button>
-                <Button variant={paymentStatus === "partial" ? "default" : "outline"} onClick={() => setPaymentStatus("partial")}>Qismən</Button>
-                <Button variant={paymentStatus === "debt" ? "default" : "outline"} onClick={() => setPaymentStatus("debt")}>Borc</Button>
+                <Button variant={paymentStatus === "paid" ? "default" : "outline"} onClick={() => selectPaymentStatus("paid")}>Tam</Button>
+                <Button variant={paymentStatus === "partial" ? "default" : "outline"} onClick={() => selectPaymentStatus("partial")}>Qismən</Button>
+                <Button variant={paymentStatus === "debt" ? "default" : "outline"} onClick={() => selectPaymentStatus("debt")}>Borc</Button>
               </div>
             </Field>
 

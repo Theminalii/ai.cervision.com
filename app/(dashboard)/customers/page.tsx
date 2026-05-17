@@ -160,11 +160,7 @@ export default function CustomersPage() {
   const [customerForm, setCustomerForm] = useState<CustomerForm>(emptyCustomerForm())
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm())
 
-  useEffect(() => {
-    void bootstrap()
-  }, [])
-
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
     try {
@@ -187,6 +183,14 @@ export default function CustomersPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const metrics = useMemo(() => {
     const salesByCustomer = new Map<number, { totalOrders: number; totalRevenue: number }>()

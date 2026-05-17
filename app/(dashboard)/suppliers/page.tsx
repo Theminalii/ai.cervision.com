@@ -127,6 +127,8 @@ export default function SuppliersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [accountsErrorMessage, setAccountsErrorMessage] = useState<string | null>(null)
+  const [paymentErrorMessage, setPaymentErrorMessage] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [purchases, setPurchases] = useState<Purchase[]>([])
@@ -139,13 +141,10 @@ export default function SuppliersPage() {
   const [supplierForm, setSupplierForm] = useState<SupplierForm>(emptySupplierForm())
   const [paymentForm, setPaymentForm] = useState<PaymentForm>(emptyPaymentForm())
 
-  useEffect(() => {
-    void bootstrap()
-  }, [])
-
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
+    setAccountsErrorMessage(null)
     try {
       const token = await ensureBackendToken("bestsol-suppliers-web")
       const [suppliersResponse, purchasesResponse] = await Promise.all([
@@ -156,8 +155,9 @@ export default function SuppliersPage() {
       try {
         const accountsResponse = await backendFetch("/finance/accounts", token)
         accountsJson = await accountsResponse.json()
-      } catch {
+      } catch (error) {
         accountsJson = []
+        setAccountsErrorMessage(error instanceof Error ? error.message : "Hesab məlumatları yüklənmədi.")
       }
       const suppliersJson = (await suppliersResponse.json()) as PaginatedResponse<Supplier>
       const purchasesJson = (await purchasesResponse.json()) as PaginatedResponse<Purchase>
@@ -170,6 +170,14 @@ export default function SuppliersPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const metrics = useMemo(() => {
     const purchasesBySupplier = new Map<number, { totalOrders: number; totalValue: number }>()
@@ -248,14 +256,8 @@ export default function SuppliersPage() {
   }
 
   const openPaymentDialog = (supplier?: Supplier) => {
-    const activeBank = accounts.find((account) => account.type === "bank" && account.status === "active")
-    const activeCash = accounts.find((account) => account.type === "cash" && account.status === "active")
-    const suggestedMethod =
-      supplier && activeBank && activeBank.balance >= supplier.total_debt
-        ? "bank"
-        : supplier && activeCash && activeCash.balance >= supplier.total_debt
-          ? "cash"
-          : "bank"
+    const suggestedMethod = getSuggestedPaymentMethod(accounts, supplier)
+    setPaymentErrorMessage(null)
 
     setPaymentForm({
       ...emptyPaymentForm(),
@@ -313,6 +315,7 @@ export default function SuppliersPage() {
 
   const submitPayment = async () => {
     setIsSaving(true)
+    setPaymentErrorMessage(null)
     try {
       if (!paymentForm.supplierId) {
         throw new Error("Əvvəlcə təchizatçı seçin.")
@@ -332,8 +335,20 @@ export default function SuppliersPage() {
         throw new Error("Ödəniş məbləği təchizatçının cari borcundan çox ola bilməz.")
       }
 
+      if (accountsErrorMessage) {
+        throw new Error(`Hesab məlumatı alınmadığı üçün ödəniş tamamlanmadı. ${accountsErrorMessage}`)
+      }
+
       const account = accounts.find((item) => item.type === paymentForm.payment_method && item.status === "active")
-      if (account && amount > Number(account.balance)) {
+      if (!account) {
+        throw new Error(
+          paymentForm.payment_method === "bank"
+            ? "Aktiv bank hesabı tapılmadı."
+            : "Aktiv nağd hesab tapılmadı.",
+        )
+      }
+
+      if (amount > Number(account.balance)) {
         throw new Error(`${account.name} hesabında kifayət qədər məbləğ yoxdur.`)
       }
 
@@ -355,9 +370,11 @@ export default function SuppliersPage() {
         await openDetailDialog(selectedSupplier)
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : "Xəta baş verdi."
+      setPaymentErrorMessage(message)
       toast({
         title: "Ödəniş tamamlanmadı",
-        description: error instanceof Error ? error.message : "Xəta baş verdi.",
+        description: message,
         variant: "destructive",
       })
     } finally {
@@ -366,25 +383,225 @@ export default function SuppliersPage() {
   }
 
   const exportSuppliers = () => {
-    const rows = [
-      ["name", "phone", "email", "address", "status", "total_debt"],
-      ...filteredSuppliers.map((supplier) => [
-        supplier.name,
-        supplier.phone,
-        supplier.email ?? "",
-        supplier.address ?? "",
-        supplier.status,
-        String(supplier.total_debt),
-      ]),
-    ]
-    const csv = rows.map((row) => row.map((cell) => `"${cell.replaceAll('"', '""')}"`).join(",")).join("\n")
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = "suppliers.csv"
-    link.click()
-    URL.revokeObjectURL(url)
+    const reportWindow = window.open("", "_blank", "noopener,noreferrer,width=1200,height=900")
+    if (!reportWindow) {
+      toast({
+        title: "PDF açıla bilmədi",
+        description: "Brauzer pop-up pəncərəsini blokladı. İcazə verib yenidən yoxlayın.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const generatedAt = new Date().toLocaleString("az-AZ", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+
+    const rows = filteredSuppliers
+      .map((supplier) => {
+        const supplierMetrics = metrics.get(supplier.id) ?? { totalOrders: 0, totalValue: 0 }
+
+        return `
+          <tr>
+            <td>${escapeHtml(supplier.name)}</td>
+            <td>${escapeHtml(supplier.phone)}</td>
+            <td>${escapeHtml(supplier.email ?? "-")}</td>
+            <td>${escapeHtml(supplier.address ?? "-")}</td>
+            <td>${escapeHtml(supplier.status === "active" ? "Aktiv" : "Passiv")}</td>
+            <td class="num">${supplierMetrics.totalOrders}</td>
+            <td class="num">${escapeHtml(formatCurrency(supplierMetrics.totalValue))}</td>
+            <td class="num debt">${escapeHtml(formatCurrency(supplier.total_debt))}</td>
+          </tr>
+        `
+      })
+      .join("")
+
+    reportWindow.document.write(`
+      <!doctype html>
+      <html lang="az">
+        <head>
+          <meta charset="utf-8" />
+          <title>BestSol Təchizatçılar Hesabatı</title>
+          <style>
+            :root {
+              color-scheme: light;
+              --text: #111827;
+              --muted: #6b7280;
+              --line: #d1d5db;
+              --panel: #f8fafc;
+              --accent: #0f766e;
+              --accent-soft: #ccfbf1;
+              --warn: #b45309;
+            }
+            * { box-sizing: border-box; }
+            body {
+              margin: 0;
+              padding: 32px;
+              font-family: "Arial", sans-serif;
+              color: var(--text);
+              background: white;
+            }
+            .page {
+              max-width: 1120px;
+              margin: 0 auto;
+            }
+            .header {
+              display: flex;
+              justify-content: space-between;
+              gap: 24px;
+              align-items: flex-start;
+              margin-bottom: 24px;
+              padding-bottom: 20px;
+              border-bottom: 2px solid var(--line);
+            }
+            .title {
+              margin: 0;
+              font-size: 28px;
+              font-weight: 700;
+            }
+            .subtitle {
+              margin: 8px 0 0;
+              color: var(--muted);
+              font-size: 14px;
+            }
+            .meta {
+              text-align: right;
+              font-size: 13px;
+              color: var(--muted);
+            }
+            .summary {
+              display: grid;
+              grid-template-columns: repeat(4, minmax(0, 1fr));
+              gap: 12px;
+              margin-bottom: 24px;
+            }
+            .card {
+              border: 1px solid var(--line);
+              border-radius: 14px;
+              padding: 16px;
+              background: var(--panel);
+            }
+            .card .label {
+              font-size: 12px;
+              color: var(--muted);
+              text-transform: uppercase;
+              letter-spacing: 0.04em;
+              margin-bottom: 8px;
+            }
+            .card .value {
+              font-size: 24px;
+              font-weight: 700;
+            }
+            table {
+              width: 100%;
+              border-collapse: collapse;
+              table-layout: fixed;
+            }
+            thead th {
+              background: var(--accent-soft);
+              color: var(--accent);
+              font-size: 12px;
+              text-transform: uppercase;
+              letter-spacing: 0.04em;
+              text-align: left;
+              padding: 12px 10px;
+              border: 1px solid var(--line);
+            }
+            tbody td {
+              padding: 12px 10px;
+              border: 1px solid var(--line);
+              vertical-align: top;
+              font-size: 13px;
+              word-break: break-word;
+            }
+            .num {
+              text-align: right;
+              white-space: nowrap;
+            }
+            .debt {
+              color: var(--warn);
+              font-weight: 700;
+            }
+            .empty {
+              border: 1px dashed var(--line);
+              border-radius: 14px;
+              padding: 24px;
+              text-align: center;
+              color: var(--muted);
+            }
+            @media print {
+              body { padding: 16px; }
+              .page { max-width: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="page">
+            <div class="header">
+              <div>
+                <h1 class="title">Təchizatçılar Hesabatı</h1>
+                <p class="subtitle">BestSol üzrə təchizatçı siyahısı, alış statistikası və borc məlumatları</p>
+              </div>
+              <div class="meta">
+                <div>Tarix: ${escapeHtml(generatedAt)}</div>
+                <div>Qeyd sayı: ${filteredSuppliers.length}</div>
+              </div>
+            </div>
+
+            <div class="summary">
+              <div class="card">
+                <div class="label">Ümumi Təchizatçılar</div>
+                <div class="value">${suppliers.length}</div>
+              </div>
+              <div class="card">
+                <div class="label">Aktiv Təchizatçılar</div>
+                <div class="value">${suppliers.filter((supplier) => supplier.status === "active").length}</div>
+              </div>
+              <div class="card">
+                <div class="label">Ümumi Alış</div>
+                <div class="value">${escapeHtml(formatCurrency(totalPurchases))}</div>
+              </div>
+              <div class="card">
+                <div class="label">Ödəniləcək Borc</div>
+                <div class="value">${escapeHtml(formatCurrency(totalDebt))}</div>
+              </div>
+            </div>
+
+            ${
+              filteredSuppliers.length === 0
+                ? `<div class="empty">İxrac üçün uyğun təchizatçı tapılmadı.</div>`
+                : `
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Təchizatçı</th>
+                        <th>Telefon</th>
+                        <th>E-poçt</th>
+                        <th>Ünvan</th>
+                        <th>Status</th>
+                        <th>Sifariş</th>
+                        <th>Ümumi Alış</th>
+                        <th>Borc</th>
+                      </tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                  </table>
+                `
+            }
+          </div>
+          <script>
+            window.onload = () => {
+              setTimeout(() => window.print(), 250)
+            }
+          </script>
+        </body>
+      </html>
+    `)
+    reportWindow.document.close()
   }
 
   if (isLoading) {
@@ -411,6 +628,11 @@ export default function SuppliersPage() {
             {errorMessage}
           </div>
         )}
+        {accountsErrorMessage && (
+          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
+            Hesab məlumatları alınmadı: {accountsErrorMessage}
+          </div>
+        )}
 
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
@@ -420,7 +642,7 @@ export default function SuppliersPage() {
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={exportSuppliers}>
               <Download className="mr-2 h-4 w-4" />
-              İxrac
+              PDF ixrac
             </Button>
             <Button variant="outline" onClick={() => openPaymentDialog()}>
               <DollarSign className="mr-2 h-4 w-4" />
@@ -583,10 +805,12 @@ export default function SuppliersPage() {
                 value={paymentForm.supplierId}
                 onValueChange={(value) => {
                   const supplier = suppliers.find((item) => String(item.id) === value)
+                  setPaymentErrorMessage(null)
                   setPaymentForm((current) => ({
                     ...current,
                     supplierId: value,
                     amount: supplier ? String(Number(supplier.total_debt).toFixed(2)) : current.amount,
+                    payment_method: getSuggestedPaymentMethod(accounts, supplier, current.payment_method),
                   }))
                 }}
               >
@@ -603,12 +827,26 @@ export default function SuppliersPage() {
               </Select>
             </Field>
             <Field label="Məbləğ">
-              <Input type="number" step="0.01" value={paymentForm.amount} onChange={(event) => setPaymentForm((current) => ({ ...current, amount: event.target.value }))} />
+              <Input
+                type="number"
+                step="0.01"
+                value={paymentForm.amount}
+                onChange={(event) => {
+                  setPaymentErrorMessage(null)
+                  setPaymentForm((current) => ({ ...current, amount: event.target.value }))
+                }}
+              />
             </Field>
             <Field label="Ödəniş üsulu">
               <div className="flex gap-2">
-                <Button type="button" variant={paymentForm.payment_method === "cash" ? "default" : "outline"} onClick={() => setPaymentForm((current) => ({ ...current, payment_method: "cash" }))}>Nağd</Button>
-                <Button type="button" variant={paymentForm.payment_method === "bank" ? "default" : "outline"} onClick={() => setPaymentForm((current) => ({ ...current, payment_method: "bank" }))}>Bank</Button>
+                <Button type="button" variant={paymentForm.payment_method === "cash" ? "default" : "outline"} onClick={() => {
+                  setPaymentErrorMessage(null)
+                  setPaymentForm((current) => ({ ...current, payment_method: "cash" }))
+                }}>Nağd</Button>
+                <Button type="button" variant={paymentForm.payment_method === "bank" ? "default" : "outline"} onClick={() => {
+                  setPaymentErrorMessage(null)
+                  setPaymentForm((current) => ({ ...current, payment_method: "bank" }))
+                }}>Bank</Button>
               </div>
             </Field>
             {selectedPaymentSupplier && (
@@ -621,11 +859,22 @@ export default function SuppliersPage() {
                 Hesab qalığı: <span className="font-medium">{selectedAccount.name} • {formatCurrency(selectedAccount.balance)}</span>
               </div>
             )}
+            {paymentErrorMessage && (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                {paymentErrorMessage}
+              </div>
+            )}
             <Field label="Tarix">
-              <Input type="date" value={paymentForm.transaction_date} onChange={(event) => setPaymentForm((current) => ({ ...current, transaction_date: event.target.value }))} />
+              <Input type="date" value={paymentForm.transaction_date} onChange={(event) => {
+                setPaymentErrorMessage(null)
+                setPaymentForm((current) => ({ ...current, transaction_date: event.target.value }))
+              }} />
             </Field>
             <Field label="Qeyd">
-              <Input value={paymentForm.note} onChange={(event) => setPaymentForm((current) => ({ ...current, note: event.target.value }))} />
+              <Input value={paymentForm.note} onChange={(event) => {
+                setPaymentErrorMessage(null)
+                setPaymentForm((current) => ({ ...current, note: event.target.value }))
+              }} />
             </Field>
           </div>
           <DialogFooter>
@@ -636,14 +885,14 @@ export default function SuppliersPage() {
       </Dialog>
 
       <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
-        <DialogContent className="max-w-3xl">
+        <DialogContent className="max-h-[90vh] overflow-hidden sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>{selectedSupplier?.name ?? "Təchizatçı detalı"}</DialogTitle>
             <DialogDescription>Satınalma və borc tarixçəsi</DialogDescription>
           </DialogHeader>
           {selectedSupplier && (
-            <div className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-4">
+            <div className="space-y-5 overflow-y-auto pr-1">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <DetailTile label="Telefon" value={selectedSupplier.phone} />
                 <DetailTile label="E-poçt" value={selectedSupplier.email ?? "-"} />
                 <DetailTile label="Ümumi borc" value={formatCurrency(selectedSupplier.total_debt)} />
@@ -651,16 +900,17 @@ export default function SuppliersPage() {
               </div>
 
               <div className="grid gap-6 lg:grid-cols-2">
-                <Card>
+                <Card className="min-h-0">
                   <CardHeader>
                     <CardTitle className="text-base">Son satınalmalar</CardTitle>
+                    <CardDescription>Təchizatçı üzrə son alış əməliyyatları</CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="min-h-0">
                     <ScrollArea className="h-64">
                       <div className="space-y-3">
                         {purchases.filter((purchase) => purchase.supplier?.id === selectedSupplier.id).map((purchase) => (
                           <div key={purchase.id} className="rounded-lg border px-3 py-2">
-                            <div className="flex items-center justify-between gap-3">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div>
                                 <div className="font-medium">{purchase.purchase_number}</div>
                                 <div className="text-sm text-muted-foreground">{formatDate(purchase.purchase_date)}</div>
@@ -672,21 +922,27 @@ export default function SuppliersPage() {
                             </div>
                           </div>
                         ))}
+                        {purchases.filter((purchase) => purchase.supplier?.id === selectedSupplier.id).length === 0 && (
+                          <div className="rounded-lg border border-dashed px-3 py-6 text-sm text-muted-foreground">
+                            Satınalma tapılmadı.
+                          </div>
+                        )}
                       </div>
                     </ScrollArea>
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card className="min-h-0">
                   <CardHeader>
                     <CardTitle className="text-base">Borc hərəkətləri</CardTitle>
+                    <CardDescription>Borc və ödəniş tarixçəsi</CardDescription>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="min-h-0">
                     <ScrollArea className="h-64">
                       <div className="space-y-3">
                         {selectedDebtTransactions.map((item) => (
                           <div key={item.id} className="rounded-lg border px-3 py-2">
-                            <div className="flex items-center justify-between gap-3">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div>
                                 <div className="font-medium">{item.type === "debt" ? "Borc yazıldı" : "Ödəniş edildi"}</div>
                                 <div className="text-sm text-muted-foreground">{formatDate(item.transaction_date)}</div>
@@ -721,6 +977,47 @@ function initials(value: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase()
+}
+
+function getSuggestedPaymentMethod(
+  accounts: Account[],
+  supplier?: Supplier,
+  fallback: PaymentForm["payment_method"] = "bank",
+): PaymentForm["payment_method"] {
+  const activeAccounts = accounts.filter((account) => account.status === "active")
+  const activeBank = activeAccounts.find((account) => account.type === "bank")
+  const activeCash = activeAccounts.find((account) => account.type === "cash")
+
+  if (!supplier) {
+    return activeBank?.type ?? activeCash?.type ?? fallback
+  }
+
+  if (activeBank && Number(activeBank.balance) >= Number(supplier.total_debt)) {
+    return "bank"
+  }
+
+  if (activeCash && Number(activeCash.balance) >= Number(supplier.total_debt)) {
+    return "cash"
+  }
+
+  if (activeBank && Number(activeBank.balance) > 0) {
+    return "bank"
+  }
+
+  if (activeCash && Number(activeCash.balance) > 0) {
+    return "cash"
+  }
+
+  return activeBank?.type ?? activeCash?.type ?? fallback
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;")
 }
 
 function StatCard({ title, value, icon: Icon }: { title: string; value: string; icon: typeof Building2 }) {

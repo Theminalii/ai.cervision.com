@@ -5,6 +5,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Header } from "@/components/layout/header"
 import { TOKEN_KEY, backendFetch, ensureBackendToken, loginToBackend } from "@/lib/backend-api"
+import { ExcelImportButton } from "@/components/import/excel-import-button"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -78,6 +79,7 @@ type SaleItem = {
   unitPrice: number
   total: number
   availableStock: number
+  stockType: "real" | "official" | "none"
 }
 
 type CustomerDraft = {
@@ -126,31 +128,6 @@ export default function NewSalePage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft>(emptyCustomerDraft())
 
-  useEffect(() => {
-    const storedToken = window.localStorage.getItem(TOKEN_KEY)
-    void bootstrap(storedToken)
-  }, [])
-
-  useEffect(() => {
-    setPaymentMethod(saleType === "cash" ? "cash" : "bank")
-    setItems((current) =>
-      current.map((item) => {
-        const product = products.find((entry) => entry.id === item.productId)
-        if (!product) return item
-
-        const unitPrice = saleType === "cash" ? product.cash_sale_price : product.official_sale_price
-        return {
-          ...item,
-          unitPrice,
-          total: roundMoney(unitPrice * item.quantity),
-          availableStock: saleType === "cash"
-            ? Number(product.stock?.real_quantity ?? 0)
-            : Number(product.stock?.official_quantity ?? 0),
-        }
-      }),
-    )
-  }, [products, saleType])
-
   const activeProducts = useMemo(
     () => products.filter((product) => product.is_active),
     [products],
@@ -194,7 +171,7 @@ export default function NewSalePage() {
     }
   }
 
-  const bootstrap = async (existingToken: string | null) => {
+  async function bootstrap(existingToken: string | null) {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -202,7 +179,16 @@ export default function NewSalePage() {
       const activeToken = existingToken ?? (await ensureBackendToken("bestsol-sales-web"))
 
       setToken(activeToken)
-      await loadData(activeToken)
+      const [productsResponse, customersResponse] = await Promise.all([
+        apiFetch("/products?per_page=200&sort=id&direction=asc", undefined, activeToken),
+        apiFetch("/customers?per_page=200&sort=id&direction=asc", undefined, activeToken),
+      ])
+
+      const productsJson = await productsResponse.json()
+      const customersJson = await customersResponse.json()
+
+      setProducts(productsJson.data ?? [])
+      setCustomers(customersJson.data ?? [])
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Səhifə yüklənmədi.")
     } finally {
@@ -210,17 +196,39 @@ export default function NewSalePage() {
     }
   }
 
-  const loadData = async (activeToken: string) => {
-    const [productsResponse, customersResponse] = await Promise.all([
-      apiFetch("/products?per_page=200&sort=id&direction=asc", undefined, activeToken),
-      apiFetch("/customers?per_page=200&sort=id&direction=asc", undefined, activeToken),
-    ])
+  useEffect(() => {
+    const storedToken = window.localStorage.getItem(TOKEN_KEY)
+    const timer = window.setTimeout(() => {
+      void bootstrap(storedToken)
+    }, 0)
 
-    const productsJson = await productsResponse.json()
-    const customersJson = await customersResponse.json()
+    return () => window.clearTimeout(timer)
+  }, [])
 
-    setProducts(productsJson.data ?? [])
-    setCustomers(customersJson.data ?? [])
+  const updateSaleType = (value: "cash" | "official") => {
+    setSaleType(value)
+    setPaymentMethod(value === "cash" ? "cash" : "bank")
+    setItems((current) =>
+      current.map((item) => {
+        const product = products.find((entry) => entry.id === item.productId)
+        if (!product) return item
+
+        const unitPrice = value === "cash" ? product.cash_sale_price : product.official_sale_price
+        return {
+          ...item,
+          unitPrice,
+          total: roundMoney(unitPrice * item.quantity),
+          availableStock: value === "cash"
+            ? Number(product.stock?.real_quantity ?? 0)
+            : Number(product.stock?.official_quantity ?? 0),
+          stockType: value === "cash"
+            ? "real"
+            : item.stockType === "none"
+              ? "none"
+              : "official",
+        }
+      }),
+    )
   }
 
   const addItem = () => {
@@ -247,12 +255,15 @@ export default function NewSalePage() {
       ? Number(product.stock?.real_quantity ?? 0)
       : Number(product.stock?.official_quantity ?? 0)
 
-    if (stockOutput && quantity > availableStock) {
+    if (saleType === "cash" && stockOutput && quantity > availableStock) {
       setErrorMessage(`Stok kifayət deyil. Mövcud qalıq: ${availableStock}`)
       return
     }
 
     const unitPrice = saleType === "cash" ? product.cash_sale_price : product.official_sale_price
+    const defaultStockType: SaleItem["stockType"] = saleType === "cash"
+      ? (stockOutput ? "real" : "none")
+      : quantity <= availableStock ? "official" : "none"
 
     setItems((current) => {
       const existingIndex = current.findIndex((item) => item.productId === product.id)
@@ -260,7 +271,7 @@ export default function NewSalePage() {
         const existingItem = current[existingIndex]
         const nextQuantity = existingItem.quantity + quantity
 
-        if (stockOutput && nextQuantity > availableStock) {
+        if (saleType === "cash" && stockOutput && nextQuantity > availableStock) {
           throw new Error(`Stok kifayət deyil. Mövcud qalıq: ${availableStock}`)
         }
 
@@ -271,6 +282,7 @@ export default function NewSalePage() {
           unitPrice,
           total: roundMoney(unitPrice * nextQuantity),
           availableStock,
+          stockType: saleType === "cash" ? (stockOutput ? "real" : "none") : existingItem.stockType,
         }
         return updated
       }
@@ -284,12 +296,17 @@ export default function NewSalePage() {
           unitPrice,
           total: roundMoney(unitPrice * quantity),
           availableStock,
+          stockType: defaultStockType,
         },
       ]
     })
 
     setSelectedProduct("")
     setQuantity(1)
+
+    if (saleType === "official" && defaultStockType === "none") {
+      setSaveMessage(`${product.name} rəsmi satışa əlavə olundu. Bu sətir üçün stok çıxışı söndürülüb.`)
+    }
   }
 
   const handleAddItem = () => {
@@ -302,6 +319,26 @@ export default function NewSalePage() {
 
   const removeItem = (productId: number) => {
     setItems((current) => current.filter((item) => item.productId !== productId))
+  }
+
+  const toggleOfficialItemStockOutput = (productId: number, checked: boolean) => {
+    setErrorMessage(null)
+    setSaveMessage(null)
+
+    setItems((current) => current.map((item) => {
+      if (item.productId !== productId) {
+        return item
+      }
+
+      if (checked && item.quantity > item.availableStock) {
+        throw new Error(`${item.productName} üçün stok kifayət deyil. Mövcud qalıq: ${item.availableStock}`)
+      }
+
+      return {
+        ...item,
+        stockType: checked ? "official" : "none",
+      }
+    }))
   }
 
   const createCustomer = async () => {
@@ -370,14 +407,20 @@ export default function NewSalePage() {
           payment_status: paymentStatus,
           payment_method: paymentMethod,
           paid_amount: paymentStatus === "paid" ? subtotal : paymentStatus === "partial" ? paidAmountValue : 0,
-          stock_output: stockOutput,
+          stock_output: saleType === "official"
+            ? items.some((item) => item.stockType !== "none")
+            : stockOutput,
           note: note || null,
           sale_date: saleDate,
           items: items.map((item) => ({
             product_id: item.productId,
             quantity: item.quantity,
             unit_price: item.unitPrice,
-            stock_type: stockOutput ? (saleType === "cash" ? "real" : "official") : "none",
+            stock_type: saleType === "official"
+              ? item.stockType
+              : stockOutput
+                ? "real"
+                : "none",
           })),
         }),
       })
@@ -418,6 +461,7 @@ export default function NewSalePage() {
               Geri
             </Button>
           </Link>
+          <ExcelImportButton target="sales" token={token} onImported={() => router.push("/sales")} />
         </div>
 
         {errorMessage && (
@@ -588,6 +632,7 @@ export default function NewSalePage() {
                           <TableHead className="text-right">Vahid Qiymət</TableHead>
                           <TableHead className="text-right">Cəmi</TableHead>
                           <TableHead className="text-right">Stok</TableHead>
+                          {saleType === "official" ? <TableHead className="text-center">Rəsmi stok çıxışı</TableHead> : null}
                           <TableHead className="w-[50px]" />
                         </TableRow>
                       </TableHeader>
@@ -601,6 +646,25 @@ export default function NewSalePage() {
                             <TableCell className="text-right">
                               <Badge variant="outline">{item.availableStock} ədəd</Badge>
                             </TableCell>
+                            {saleType === "official" ? (
+                              <TableCell className="text-center">
+                                <div className="flex items-center justify-center gap-2">
+                                  <Checkbox
+                                    checked={item.stockType === "official"}
+                                    onCheckedChange={(checked) => {
+                                      try {
+                                        toggleOfficialItemStockOutput(item.productId, Boolean(checked))
+                                      } catch (error) {
+                                        setErrorMessage(error instanceof Error ? error.message : "Stok çıxışı yenilənmədi.")
+                                      }
+                                    }}
+                                  />
+                                  <Badge variant={item.stockType === "official" ? "default" : "secondary"}>
+                                    {item.stockType === "official" ? "Çıxılsın" : "Çıxılmasın"}
+                                  </Badge>
+                                </div>
+                              </TableCell>
+                            ) : null}
                             <TableCell>
                               <Button variant="ghost" size="icon" onClick={() => removeItem(item.productId)}>
                                 <Trash2 className="h-4 w-4 text-destructive" />
@@ -629,7 +693,7 @@ export default function NewSalePage() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label>Satış Növü</Label>
-                    <Select value={saleType} onValueChange={(value: "cash" | "official") => setSaleType(value)}>
+                    <Select value={saleType} onValueChange={updateSaleType}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -690,23 +754,35 @@ export default function NewSalePage() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between rounded-lg bg-muted p-4">
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      id="stockOutput"
-                      checked={stockOutput}
-                      onCheckedChange={(checked) => setStockOutput(Boolean(checked))}
-                    />
-                    <Label htmlFor="stockOutput" className="cursor-pointer">Stokdan çıxılsın</Label>
+                {saleType === "cash" ? (
+                  <div className="flex items-center justify-between rounded-lg bg-muted p-4">
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        id="stockOutput"
+                        checked={stockOutput}
+                        onCheckedChange={(checked) => setStockOutput(Boolean(checked))}
+                      />
+                      <Label htmlFor="stockOutput" className="cursor-pointer">Stokdan çıxılsın</Label>
+                    </div>
+                    <Badge variant={stockOutput ? "default" : "secondary"}>
+                      {stockOutput ? "Real stok azalacaq" : "Stok dəyişməyəcək"}
+                    </Badge>
                   </div>
-                  <Badge variant={stockOutput ? "default" : "secondary"}>
-                    {stockOutput
-                      ? saleType === "cash"
-                        ? "Real stok azalacaq"
-                        : "Rəsmi stok azalacaq"
-                      : "Stok dəyişməyəcək"}
-                  </Badge>
-                </div>
+                ) : (
+                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Rəsmi satışda məhsul-bazlı stok çıxışı aktivdir</p>
+                        <p className="text-sm text-muted-foreground">
+                          Hər məhsul sətrində ayrıca seçə bilərsiniz: hansı məhsul rəsmi stokdan çıxsın, hansı çıxmasın.
+                        </p>
+                      </div>
+                      <Badge variant="outline">
+                        {items.filter((item) => item.stockType === "official").length} məhsul stokdan çıxacaq
+                      </Badge>
+                    </div>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Qeyd</Label>

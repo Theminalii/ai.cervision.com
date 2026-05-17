@@ -76,6 +76,7 @@ Frontend:
 
 ```bash
 npm run build
+npm run deploy:frontend
 ```
 
 Backend:
@@ -84,6 +85,30 @@ Backend:
 cd backend
 php artisan test
 php artisan route:list --path=api
+composer run deploy:backend:first
+composer run deploy:backend:subsequent
+```
+
+## Production Deploy Shortcuts
+
+Frontend:
+
+```bash
+npm run deploy:frontend
+```
+
+Backend first deploy:
+
+```bash
+cd backend
+composer run deploy:backend:first
+```
+
+Backend subsequent deploy:
+
+```bash
+cd backend
+composer run deploy:backend:subsequent
 ```
 
 ## GitHub Upload Notes

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Header } from "@/components/layout/header"
 import { backendFetch, ensureBackendToken } from "@/lib/backend-api"
+import { ExcelImportButton } from "@/components/import/excel-import-button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -100,11 +101,20 @@ export default function PurchasesPage() {
   const [paymentFilter, setPaymentFilter] = useState<string>("all")
   const [selectedPurchase, setSelectedPurchase] = useState<Purchase | null>(null)
 
-  useEffect(() => {
-    void bootstrap()
-  }, [])
+  async function loadData(activeToken: string) {
+    const [purchasesResponse, suppliersResponse] = await Promise.all([
+      backendFetch("/purchases?per_page=200", activeToken),
+      backendFetch("/suppliers?per_page=200&sort=id&direction=asc", activeToken),
+    ])
 
-  const bootstrap = async () => {
+    const purchasesJson = await purchasesResponse.json()
+    const suppliersJson = await suppliersResponse.json()
+
+    setPurchases(purchasesJson.data ?? [])
+    setSuppliers(suppliersJson.data ?? [])
+  }
+
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -119,18 +129,13 @@ export default function PurchasesPage() {
     }
   }
 
-  const loadData = async (activeToken: string) => {
-    const [purchasesResponse, suppliersResponse] = await Promise.all([
-      backendFetch("/purchases?per_page=200", activeToken),
-      backendFetch("/suppliers?per_page=200&sort=id&direction=asc", activeToken),
-    ])
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
 
-    const purchasesJson = await purchasesResponse.json()
-    const suppliersJson = await suppliersResponse.json()
-
-    setPurchases(purchasesJson.data ?? [])
-    setSuppliers(suppliersJson.data ?? [])
-  }
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const filteredPurchases = useMemo(() => {
     const loweredQuery = searchQuery.toLowerCase()
@@ -204,12 +209,15 @@ export default function PurchasesPage() {
                 <CardTitle>Satınalma Siyahısı</CardTitle>
                 <CardDescription>Bütün satınalma əməliyyatlarını izləyin</CardDescription>
               </div>
-              <Link href="/purchases/new">
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Yeni Satınalma
-                </Button>
-              </Link>
+              <div className="flex items-center gap-2">
+                <ExcelImportButton target="purchases" token={token} onImported={bootstrap} />
+                <Link href="/purchases/new">
+                  <Button>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Yeni Satınalma
+                  </Button>
+                </Link>
+              </div>
             </div>
           </CardHeader>
           <CardContent>

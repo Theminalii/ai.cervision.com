@@ -109,11 +109,7 @@ export default function WarehousesPage() {
     transfer_date: today,
   })
 
-  useEffect(() => {
-    void bootstrap()
-  }, [])
-
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -128,7 +124,15 @@ export default function WarehousesPage() {
     }
   }
 
-  const loadData = async (activeToken: string) => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  async function loadData(activeToken: string) {
     const [warehousesResponse, transfersResponse] = await Promise.all([
       backendFetch("/warehouses?per_page=200", activeToken),
       backendFetch("/warehouse-transfers?per_page=200", activeToken),

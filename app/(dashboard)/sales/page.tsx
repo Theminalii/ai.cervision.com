@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Header } from "@/components/layout/header"
 import { TOKEN_KEY, backendFetch, ensureBackendToken } from "@/lib/backend-api"
+import { ExcelImportButton } from "@/components/import/excel-import-button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -118,11 +119,6 @@ export default function SalesPage() {
     transaction_date: today,
   })
 
-  useEffect(() => {
-    const storedToken = window.localStorage.getItem(TOKEN_KEY)
-    void bootstrap(storedToken)
-  }, [])
-
   const apiFetch = async (path: string, init?: RequestInit, customToken?: string) => {
     const activeToken = customToken ?? token
     if (!activeToken) {
@@ -139,7 +135,7 @@ export default function SalesPage() {
     }
   }
 
-  const bootstrap = async (existingToken: string | null) => {
+  async function bootstrap(existingToken: string | null) {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -155,7 +151,16 @@ export default function SalesPage() {
     }
   }
 
-  const loadData = async (activeToken: string) => {
+  useEffect(() => {
+    const storedToken = window.localStorage.getItem(TOKEN_KEY)
+    const timer = window.setTimeout(() => {
+      void bootstrap(storedToken)
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  async function loadData(activeToken: string) {
     const [salesResponse, customersResponse] = await Promise.all([
       apiFetch("/sales?per_page=200", undefined, activeToken),
       apiFetch("/customers?per_page=200&sort=id&direction=asc", undefined, activeToken),
@@ -344,6 +349,7 @@ export default function SalesPage() {
             <Button variant="outline" size="sm" className="h-9 gap-1.5">
               <Download className="h-4 w-4" /> Export
             </Button>
+            <ExcelImportButton target="sales" token={token} onImported={() => token ? loadData(token) : undefined} />
             <Link href="/sales/new">
               <Button size="sm" className="h-9 gap-1.5">
                 <Plus className="h-4 w-4" /> Yeni Satış

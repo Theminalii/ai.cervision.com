@@ -1,12 +1,10 @@
 export const API_BASE = process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://127.0.0.1:8000/api"
 export const TOKEN_KEY = "bestsol-backend-token"
 export const LOGGED_OUT_KEY = "bestsol-logged-out"
-export const DEFAULT_DEV_EMAIL = "admin@bestsol.az"
-export const DEFAULT_DEV_PASSWORD = "password"
 export const API_BASE_STORAGE_KEY = "bestsol-backend-api-base"
 
 function getNetworkErrorMessage() {
-  return "Backend serverinə qoşulmaq olmadı. `backend` tərəfində `php artisan serve` işlədiyini yoxlayın."
+  return "Backend serverinə qoşulmaq olmadı. Lokal mühitdə `backend` tərəfində `php artisan serve` işlədiyini, deploy mühitində isə `NEXT_PUBLIC_BACKEND_API_URL` dəyərinin düzgün verildiyini yoxlayın."
 }
 
 function unique<T>(values: T[]) {
@@ -45,6 +43,7 @@ function getApiCandidates() {
     candidates.push(normalizeApiBase("http://localhost:8000"))
     candidates.push(normalizeApiBase("http://127.0.0.1:8001"))
     candidates.push(normalizeApiBase("http://localhost:8001"))
+    candidates.push(normalizeApiBase(window.location.origin))
   }
 
   return unique(candidates)
@@ -82,7 +81,7 @@ export function clearPreferredApiBase() {
   }
 }
 
-export async function loginToBackend(email = DEFAULT_DEV_EMAIL, password = DEFAULT_DEV_PASSWORD, deviceName = "bestsol-web") {
+export async function loginToBackend(email: string, password: string, deviceName = "bestsol-web") {
   let sawNetworkFailure = false
 
   for (const base of getApiCandidates()) {
@@ -106,9 +105,13 @@ export async function loginToBackend(email = DEFAULT_DEV_EMAIL, password = DEFAU
       continue
     }
 
+    if (response.status === 404 || response.status === 405) {
+      continue
+    }
+
     if (!response.ok) {
-      rememberApiBase(base)
-      return null
+      const json = await response.json().catch(() => null)
+      throw new Error(json?.message ?? "Giriş alınmadı.")
     }
 
     const json = await response.json()
@@ -124,7 +127,7 @@ export async function loginToBackend(email = DEFAULT_DEV_EMAIL, password = DEFAU
 }
 
 export async function ensureBackendToken(deviceName = "bestsol-web") {
-    const storedToken = window.localStorage.getItem(TOKEN_KEY)
+  const storedToken = window.localStorage.getItem(TOKEN_KEY)
   if (storedToken) {
     return storedToken
   }
@@ -134,14 +137,9 @@ export async function ensureBackendToken(deviceName = "bestsol-web") {
     throw new Error("Giriş tələb olunur.")
   }
 
-  const token = await loginToBackend(DEFAULT_DEV_EMAIL, DEFAULT_DEV_PASSWORD, deviceName)
-  if (!token) {
-    throw new Error("Backend bağlantısı üçün giriş alınmadı.")
-  }
-
-  window.localStorage.setItem(TOKEN_KEY, token)
-  window.localStorage.removeItem(LOGGED_OUT_KEY)
-  return token
+  window.localStorage.setItem(LOGGED_OUT_KEY, "1")
+  window.location.href = `/login?device=${encodeURIComponent(deviceName)}`
+  throw new Error("Giriş tələb olunur.")
 }
 
 export async function backendFetch(path: string, token: string, init?: RequestInit) {
@@ -164,12 +162,14 @@ export async function backendFetch(path: string, token: string, init?: RequestIn
       continue
     }
 
-    rememberApiBase(base)
-
     if (response.status === 401) {
       window.localStorage.removeItem(TOKEN_KEY)
       window.localStorage.setItem(LOGGED_OUT_KEY, "1")
       throw new Error("Sessiya bitib. Yenidən qoşulun.")
+    }
+
+    if (response.status === 404 || response.status === 405) {
+      continue
     }
 
     if (!response.ok) {
@@ -184,6 +184,7 @@ export async function backendFetch(path: string, token: string, init?: RequestIn
       throw new Error(json?.message ?? "Sorğu zamanı xəta baş verdi.")
     }
 
+    rememberApiBase(base)
     return response
   }
 

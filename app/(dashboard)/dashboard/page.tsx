@@ -83,11 +83,7 @@ export default function DashboardPage() {
   const [recentPurchases, setRecentPurchases] = useState<PurchaseItem[]>([])
   const [lowStock, setLowStock] = useState<LowStockItem[]>([])
 
-  useEffect(() => {
-    void bootstrap()
-  }, [])
-
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -126,6 +122,14 @@ export default function DashboardPage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const weeklyBars = useMemo(
     () => salesChart.slice(-7).map((item) => ({
@@ -221,7 +225,7 @@ export default function DashboardPage() {
               <CardTitle className="text-[15px] font-semibold">Satış və Xərc Trendi</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="h-[280px]">
+              <div className="h-70">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart
                     data={salesChart.map((item, index) => ({
@@ -246,7 +250,7 @@ export default function DashboardPage() {
               <CardTitle className="text-[15px] font-semibold">Son Dövr Satışları</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="h-[220px]">
+              <div className="h-55">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={weeklyBars}>
                     <XAxis dataKey="name" axisLine={false} tickLine={false} />

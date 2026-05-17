@@ -31,6 +31,7 @@ class UpdateNotificationSettingsRequest extends FormRequest
             'events.payment' => ['required', 'boolean'],
             'events.weekly_summary' => ['required', 'boolean'],
             'events.failed_login' => ['required', 'boolean'],
+            'events.ai_agent' => ['required', 'boolean'],
         ];
     }
 }

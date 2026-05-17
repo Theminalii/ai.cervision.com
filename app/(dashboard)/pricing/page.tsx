@@ -82,11 +82,7 @@ export default function PricingPage() {
     vat_percent: "18",
   })
 
-  useEffect(() => {
-    void bootstrap()
-  }, [])
-
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -101,7 +97,15 @@ export default function PricingPage() {
     }
   }
 
-  const loadData = async (activeToken: string) => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
+
+  async function loadData(activeToken: string) {
     const [categoriesResponse, brandsResponse, suppliersResponse, coefficientsResponse] = await Promise.all([
       backendFetch("/categories", activeToken),
       backendFetch("/brands", activeToken),

@@ -6,7 +6,10 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Finance\DebtPaymentRequest;
 use App\Http\Requests\Operations\StoreSaleRequest;
 use App\Http\Resources\SaleResource;
+use App\Models\DebtTransaction;
+use App\Models\FinancialTransaction;
 use App\Models\Sale;
+use App\Models\StockMovement;
 use App\Services\SaleService;
 use Illuminate\Http\Request;
 
@@ -47,6 +50,25 @@ class SaleController extends Controller
 
     public function destroy(Sale $sale)
     {
+        $hasSideEffects = StockMovement::query()
+            ->where('reference_type', Sale::class)
+            ->where('reference_id', $sale->id)
+            ->exists()
+            || FinancialTransaction::query()
+                ->whereIn('source_type', ['sale', 'sale_payment'])
+                ->where('source_id', $sale->id)
+                ->exists()
+            || DebtTransaction::query()
+                ->where('reference_type', Sale::class)
+                ->where('reference_id', $sale->id)
+                ->exists();
+
+        if ($hasSideEffects) {
+            return response()->json([
+                'message' => 'Stok, maliyyə və ya borc qeydləri yaranmış satış silinə bilməz.',
+            ], 422);
+        }
+
         $sale->delete();
 
         return response()->json(['message' => 'Satış silindi.']);

@@ -34,6 +34,10 @@ class BrandController extends Controller
 
     public function destroy(Brand $brand)
     {
+        if ($brand->products()->exists()) {
+            return response()->json(['message' => 'Məhsullarla əlaqəli brend silinə bilməz.'], 422);
+        }
+
         $brand->delete();
 
         return response()->json(['message' => 'Brend silindi.']);

@@ -34,6 +34,10 @@ class MobileController extends Controller
             return response()->json(['message' => 'Email və ya şifrə yanlışdır.'], 422);
         }
 
+        if ($user->status !== 'active') {
+            return response()->json(['message' => 'İstifadəçi deaktiv edilib.'], 403);
+        }
+
         return response()->json([
             'token' => $user->createToken('bestsol-mobile')->plainTextToken,
         ]);

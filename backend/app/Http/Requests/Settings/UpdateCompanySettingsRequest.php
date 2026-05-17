@@ -21,7 +21,7 @@ class UpdateCompanySettingsRequest extends FormRequest
             'address' => ['nullable', 'string'],
             'currency' => ['required', 'string', 'max:10'],
             'language' => ['required', 'string', 'max:10'],
-            'timezone' => ['required', 'string', 'max:100'],
+            'timezone' => ['required', 'timezone:all'],
             'invoice_template' => ['required', 'string', 'max:50'],
             'receipt_size' => ['required', 'string', 'max:50'],
             'auto_print_receipt' => ['required', 'boolean'],

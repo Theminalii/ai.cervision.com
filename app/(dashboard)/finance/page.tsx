@@ -233,11 +233,7 @@ export default function FinancePage() {
   const [expenseForm, setExpenseForm] = useState<ExpenseForm>(defaultExpenseForm())
   const [debtForm, setDebtForm] = useState<DebtForm>(defaultDebtForm())
 
-  useEffect(() => {
-    void bootstrap()
-  }, [])
-
-  const bootstrap = async () => {
+  async function bootstrap() {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -274,6 +270,14 @@ export default function FinancePage() {
       setIsLoading(false)
     }
   }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void bootstrap()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [])
 
   const customerDebtTotal = useMemo(
     () => customers.reduce((sum, customer) => sum + Number(customer.total_debt ?? 0), 0),

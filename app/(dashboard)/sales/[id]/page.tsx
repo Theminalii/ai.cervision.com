@@ -103,11 +103,6 @@ export default function SaleDetailsPage() {
   })
 
   useEffect(() => {
-    const storedToken = window.localStorage.getItem(TOKEN_KEY)
-    void bootstrap(storedToken)
-  }, [saleId])
-
-  useEffect(() => {
     if (sale && printMode) {
       const timer = window.setTimeout(() => window.print(), 300)
       return () => window.clearTimeout(timer)
@@ -130,7 +125,7 @@ export default function SaleDetailsPage() {
     }
   }
 
-  const bootstrap = async (existingToken: string | null) => {
+  async function bootstrap(existingToken: string | null) {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -138,7 +133,9 @@ export default function SaleDetailsPage() {
       const activeToken = existingToken ?? (await ensureBackendToken("bestsol-sales-detail-web"))
 
       setToken(activeToken)
-      await loadSale(activeToken)
+      const response = await apiFetch(`/sales/${saleId}`, undefined, activeToken)
+      const json = await response.json()
+      setSale(json.data ?? json)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Satış detalları yüklənmədi.")
     } finally {
@@ -146,11 +143,14 @@ export default function SaleDetailsPage() {
     }
   }
 
-  const loadSale = async (activeToken: string) => {
-    const response = await apiFetch(`/sales/${saleId}`, undefined, activeToken)
-    const json = await response.json()
-    setSale(json.data ?? json)
-  }
+  useEffect(() => {
+    const storedToken = window.localStorage.getItem(TOKEN_KEY)
+    const timer = window.setTimeout(() => {
+      void bootstrap(storedToken)
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [saleId])
 
   const openPaymentDialog = () => {
     if (!sale || sale.debt_amount <= 0) {

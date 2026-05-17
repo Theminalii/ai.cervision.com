@@ -134,6 +134,7 @@ type SettingsPayload = {
       payment: boolean
       weekly_summary: boolean
       failed_login: boolean
+      ai_agent: boolean
     }
   }
   appearance: {
@@ -174,7 +175,7 @@ const defaultSettings: SettingsPayload = {
     address: "Bakı şəhəri, Nəsimi rayonu",
     currency: "AZN",
     language: "az",
-    timezone: "asia-baku",
+    timezone: "Asia/Baku",
     invoice_template: "standard",
     receipt_size: "80mm",
     auto_print_receipt: true,
@@ -206,6 +207,7 @@ const defaultSettings: SettingsPayload = {
       payment: true,
       weekly_summary: true,
       failed_login: true,
+      ai_agent: true,
     },
   },
   appearance: {
@@ -252,8 +254,8 @@ export default function SettingsPage() {
     new_password_confirmation: "",
   })
   const [connectForm, setConnectForm] = useState({
-    email: DEFAULT_DEV_EMAIL,
-    password: DEFAULT_DEV_PASSWORD,
+    email: "",
+    password: "",
   })
   const [apiBaseInput, setApiBaseInput] = useState(API_BASE)
 
@@ -273,13 +275,17 @@ export default function SettingsPage() {
   }, [permissions])
 
   useEffect(() => {
-    setMounted(true)
-    setApiBaseInput(getPreferredApiBase())
-    const storedToken = window.localStorage.getItem(TOKEN_KEY)
-    void bootstrap(storedToken)
+    const frame = window.requestAnimationFrame(() => {
+      setMounted(true)
+      setApiBaseInput(getPreferredApiBase())
+      const storedToken = window.localStorage.getItem(TOKEN_KEY)
+      void bootstrap(storedToken)
+    })
+
+    return () => window.cancelAnimationFrame(frame)
   }, [])
 
-  const bootstrap = async (existingToken: string | null) => {
+  async function bootstrap(existingToken: string | null) {
     setIsLoading(true)
     setErrorMessage(null)
 
@@ -880,7 +886,7 @@ export default function SettingsPage() {
                   <Select value={settings.company.timezone} onValueChange={(value) => updateCompany("timezone", value)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="asia-baku">Bakı (UTC+4)</SelectItem>
+                      <SelectItem value="Asia/Baku">Bakı (UTC+4)</SelectItem>
                       <SelectItem value="europe-istanbul">İstanbul (UTC+3)</SelectItem>
                       <SelectItem value="europe-moscow">Moskva (UTC+3)</SelectItem>
                     </SelectContent>
@@ -1092,7 +1098,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
-                <Button variant="outline" onClick={saveNotificationSettings}>Yadda saxla</Button>
+                <Button variant="outline" onClick={() => void saveNotificationSettings()}>Yadda saxla</Button>
                 <Button onClick={() => handleNotificationTest("email")}>
                   <Send className="mr-2 h-4 w-4" />
                   Test email göndər
@@ -1125,7 +1131,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-3">
-                <Button variant="outline" onClick={saveNotificationSettings}>Yadda saxla</Button>
+                <Button variant="outline" onClick={() => void saveNotificationSettings()}>Yadda saxla</Button>
                 <Button onClick={() => handleNotificationTest("telegram")}>
                   <Send className="mr-2 h-4 w-4" />
                   Telegram test göndər
@@ -1145,6 +1151,7 @@ export default function SettingsPage() {
                 ["new_order", "Yeni sifariş", "Yeni sifariş daxil olduqda"],
                 ["payment", "Ödəniş bildirişləri", "Ödəniş alındıqda və ya gecikdikdə"],
                 ["failed_login", "Uğursuz giriş cəhdləri", "Şübhəli login halları olduqda"],
+                ["ai_agent", "AI Agent xülasəsi", "AI dashboard risk və fürsət xülasəsi hazır olduqda"],
               ].map(([key, title, description], index) => (
                 <div key={key}>
                   {index > 0 && <Separator className="mb-4" />}
@@ -1160,7 +1167,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ))}
-              <Button variant="outline" onClick={saveNotificationSettings}>Hadisə ayarlarını yadda saxla</Button>
+              <Button variant="outline" onClick={() => void saveNotificationSettings()}>Hadisə ayarlarını yadda saxla</Button>
             </CardContent>
           </Card>
         </TabsContent>
