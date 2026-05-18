@@ -1,7 +1,7 @@
 "use client"
 
 import { backendFetch } from "@/lib/backend-api"
-import type { FrontendUser } from "@/lib/permissions"
+import { normalizeFrontendUserPayload, type FrontendUser } from "@/lib/permissions"
 
 const USER_CACHE_KEY = "bestsol-frontend-user"
 const USER_CACHE_UPDATED_AT_KEY = "bestsol-frontend-user-updated-at"
@@ -33,7 +33,7 @@ export function getCachedFrontendUser() {
   }
 
   try {
-    return JSON.parse(raw) as FrontendUser
+    return normalizeFrontendUserPayload(JSON.parse(raw))
   } catch {
     clearCachedFrontendUser()
     return null
@@ -41,14 +41,20 @@ export function getCachedFrontendUser() {
 }
 
 export function setCachedFrontendUser(user: FrontendUser) {
+  const normalizedUser = normalizeFrontendUserPayload(user)
+  if (!normalizedUser) {
+    clearCachedFrontendUser()
+    return
+  }
+
   const storage = getStorage()
   if (!storage) {
     return
   }
 
-  storage.setItem(USER_CACHE_KEY, JSON.stringify(user))
+  storage.setItem(USER_CACHE_KEY, JSON.stringify(normalizedUser))
   storage.setItem(USER_CACHE_UPDATED_AT_KEY, String(Date.now()))
-  window.dispatchEvent(new CustomEvent("bestsol:user-updated", { detail: user }))
+  window.dispatchEvent(new CustomEvent("bestsol:user-updated", { detail: normalizedUser }))
 }
 
 export function clearCachedFrontendUser() {
@@ -70,7 +76,10 @@ export async function fetchFrontendUser(token: string, options?: { force?: boole
 
   const response = await backendFetch("/me", token)
   const json = await response.json()
-  const user = (json.data ?? json) as FrontendUser
+  const user = normalizeFrontendUserPayload(json)
+  if (!user) {
+    throw new Error("İstifadəçi məlumatı oxunmadı.")
+  }
   setCachedFrontendUser(user)
   return user
 }

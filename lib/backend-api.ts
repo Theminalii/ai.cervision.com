@@ -1,3 +1,5 @@
+import { normalizeFrontendUserPayload } from "@/lib/permissions"
+
 export const API_BASE = process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://127.0.0.1:8000/api"
 export const TOKEN_KEY = "bestsol-backend-token"
 export const LOGGED_OUT_KEY = "bestsol-logged-out"
@@ -22,8 +24,7 @@ function getLocalStorage() {
 
 function initializeBrowserSession() {
   const session = getSessionStorage()
-  const local = getLocalStorage()
-  if (!session || !local) {
+  if (!session) {
     return
   }
 
@@ -31,8 +32,6 @@ function initializeBrowserSession() {
     return
   }
 
-  local.removeItem(TOKEN_KEY)
-  local.removeItem(LOGGED_OUT_KEY)
   session.setItem(SESSION_ACTIVE_KEY, "1")
 }
 
@@ -206,7 +205,7 @@ export async function loginToBackend(email: string, password: string, deviceName
     rememberApiBase(base)
     return {
       token: json.token as string,
-      user: (json.user ?? null) as Record<string, unknown> | null,
+      user: normalizeFrontendUserPayload(json.user ?? null),
     }
   }
 
