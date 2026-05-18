@@ -56,6 +56,121 @@ DB_USERNAME=root
 DB_PASSWORD=
 ```
 
+### Production Scale Setup
+
+If you want stable multi-user usage, use:
+
+- MySQL for the main database
+- Redis for cache, sessions, and queues
+- a queue worker process
+- VPS or another environment with Redis support
+
+Ready example:
+
+- Copy [`.env.production-scale.example`](./.env.production-scale.example) to `.env`
+
+Recommended production values:
+
+```env
+DB_CONNECTION=mysql
+SESSION_DRIVER=redis
+CACHE_STORE=redis
+QUEUE_CONNECTION=redis
+REDIS_CLIENT=phpredis
+```
+
+Run the first deploy:
+
+```bash
+composer install --no-dev --optimize-autoloader
+php artisan key:generate --force
+php artisan migrate --force
+php artisan db:seed --force
+php artisan config:cache
+php artisan route:cache
+```
+
+Run the queue worker:
+
+```bash
+sh scripts/run-queue-worker.sh
+```
+
+For sustained production usage, keep the queue worker running under a process manager like `systemd` or Supervisor.
+
+High-level recommendation for 100 concurrent staff:
+
+1. Frontend on managed Node.js or VPS
+2. Backend API on VPS
+3. MySQL instead of SQLite
+4. Redis for cache, sessions, and queue
+5. One or more persistent queue workers
+6. Reduced frontend request volume on heavy screens like POS
+
+### SQLite to MySQL Migration
+
+If you already have live data in SQLite and want to move it into MySQL:
+
+1. Keep a backup copy of your current SQLite file.
+2. Create a fresh MySQL database and user.
+3. Update `.env`:
+
+```env
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=bestsol
+DB_USERNAME=bestsol_user
+DB_PASSWORD=change_me
+```
+
+4. Run schema on MySQL:
+
+```bash
+php artisan migrate --force
+```
+
+5. Copy SQLite data into MySQL with the built-in helper command:
+
+```bash
+php artisan db:copy-sqlite-to-mysql /full/path/to/database.sqlite
+```
+
+Optional flags:
+
+```bash
+php artisan db:copy-sqlite-to-mysql /full/path/to/database.sqlite --chunk=1000
+php artisan db:copy-sqlite-to-mysql /full/path/to/database.sqlite --keep-existing
+```
+
+Default skipped tables:
+
+- `migrations`
+- `cache`
+- `cache_locks`
+- `sessions`
+- `jobs`
+- `job_batches`
+- `failed_jobs`
+
+6. After the copy finishes:
+
+```bash
+php artisan config:clear
+php artisan cache:clear
+php artisan config:cache
+php artisan route:cache
+```
+
+7. Log in again and verify:
+
+- products
+- customers
+- suppliers
+- sales
+- purchases
+- POS flow
+
 ### Useful Commands
 
 ```bash

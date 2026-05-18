@@ -80,6 +80,7 @@ Route::middleware(['auth:sanctum', 'active'])->group(function (): void {
 
     Route::prefix('dashboard')->group(function (): void {
         Route::get('summary', [DashboardController::class, 'summary']);
+        Route::get('header', [DashboardController::class, 'header']);
         Route::get('sales-chart', [DashboardController::class, 'salesChart']);
         Route::get('expense-chart', [DashboardController::class, 'expenseChart']);
         Route::get('recent-sales', [DashboardController::class, 'recentSales']);

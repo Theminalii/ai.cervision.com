@@ -27,7 +27,7 @@ return new class extends Migration
             $table->string('provider')->unique();
             $table->text('api_key')->nullable();
             $table->text('token_code')->nullable();
-            $table->json('meta')->nullable();
+            $table->longText('meta')->nullable();
             $table->boolean('is_active')->default(false);
             $table->timestamps();
         });
@@ -97,7 +97,7 @@ return new class extends Migration
             $table->boolean('enabled')->default(false);
             $table->string('connection_type')->nullable();
             $table->json('public_meta')->nullable();
-            $table->json('secret_meta')->nullable();
+            $table->longText('secret_meta')->nullable();
             $table->timestamps();
         });
 

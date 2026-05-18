@@ -204,7 +204,10 @@ export async function loginToBackend(email: string, password: string, deviceName
 
     const json = await response.json()
     rememberApiBase(base)
-    return json.token as string
+    return {
+      token: json.token as string,
+      user: (json.user ?? null) as Record<string, unknown> | null,
+    }
   }
 
   if (sawNetworkFailure) {

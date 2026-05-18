@@ -5,7 +5,8 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { backendFetch, ensureBackendToken } from "@/lib/backend-api"
+import { ensureBackendToken } from "@/lib/backend-api"
+import { fetchFrontendUser, getCachedFrontendUser } from "@/lib/frontend-user"
 import { FrontendUser, hasPermission } from "@/lib/permissions"
 import {
   LayoutDashboard,
@@ -140,13 +141,11 @@ type NavigationItem = (typeof navigation)[number]
 export function Sidebar() {
   const pathname = usePathname()
   const [expandedItems, setExpandedItems] = useState<string[]>(["Məhsullar", "Satış"])
-  const [user, setUser] = useState<FrontendUser | null>(null)
+  const [user, setUser] = useState<FrontendUser | null>(() => getCachedFrontendUser())
   const loadCurrentUser = useCallback(async () => {
     try {
       const token = await ensureBackendToken("bestsol-sidebar-web")
-      const response = await backendFetch("/me", token)
-      const json = await response.json()
-      setUser(json.data ?? json)
+      setUser(await fetchFrontendUser(token))
     } catch {
       setUser(null)
     }
@@ -159,6 +158,22 @@ export function Sidebar() {
 
     return () => window.clearTimeout(timer)
   }, [loadCurrentUser])
+
+  useEffect(() => {
+    const handleUserUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<FrontendUser>
+      setUser(customEvent.detail)
+    }
+    const handleUserCleared = () => setUser(null)
+
+    window.addEventListener("bestsol:user-updated", handleUserUpdated as EventListener)
+    window.addEventListener("bestsol:user-cleared", handleUserCleared)
+
+    return () => {
+      window.removeEventListener("bestsol:user-updated", handleUserUpdated as EventListener)
+      window.removeEventListener("bestsol:user-cleared", handleUserCleared)
+    }
+  }, [])
 
   const canAccess = useCallback((permission?: string) => {
     if (!permission) {

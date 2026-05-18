@@ -8,6 +8,7 @@ use App\Http\Resources\SaleResource;
 use App\Http\Resources\StockResource;
 use App\Services\DashboardService;
 use App\Services\SettingsNotificationService;
+use Illuminate\Support\Facades\Cache;
 
 class DashboardController extends Controller
 {
@@ -53,5 +54,16 @@ class DashboardController extends Controller
         return response()->json([
             'data' => $this->notificationService->getInAppNotifications(),
         ]);
+    }
+
+    public function header()
+    {
+        return response()->json(Cache::remember('dashboard:header', now()->addSeconds(15), function () {
+            return [
+                'recent_sales' => SaleResource::collection($this->dashboardService->recentSales())->resolve(),
+                'low_stock' => StockResource::collection($this->dashboardService->lowStock())->resolve(),
+                'notifications' => $this->notificationService->getInAppNotifications(),
+            ];
+        }));
     }
 }

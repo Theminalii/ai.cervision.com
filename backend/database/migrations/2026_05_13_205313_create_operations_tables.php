@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('sales', function (Blueprint $table) {
             $table->id();
             $table->string('sale_number')->unique();
-            $table->foreignId('customer_id')->nullable()->constrained()->nullOnDelete();
+            $table->unsignedBigInteger('customer_id')->nullable();
             $table->foreignId('user_id')->constrained()->restrictOnDelete();
             $table->enum('sale_type', ['cash', 'official']);
             $table->enum('payment_status', ['paid', 'partial', 'debt']);
@@ -44,7 +44,7 @@ return new class extends Migration
         Schema::create('purchases', function (Blueprint $table) {
             $table->id();
             $table->string('purchase_number')->unique();
-            $table->foreignId('supplier_id')->constrained()->restrictOnDelete();
+            $table->unsignedBigInteger('supplier_id');
             $table->enum('payment_method', ['cash', 'bank']);
             $table->decimal('total_amount', 14, 2);
             $table->decimal('paid_amount', 14, 2)->default(0);

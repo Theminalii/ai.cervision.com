@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { backendFetch, clearBackendSession, ensureBackendToken } from "@/lib/backend-api"
+import { clearCachedFrontendUser, fetchFrontendUser, getCachedFrontendUser } from "@/lib/frontend-user"
 import { FrontendUser, hasPermission } from "@/lib/permissions"
 import { Bell, Search, Command, ChevronDown, Plus, LogOut, User, Settings, Loader2, Menu } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -43,8 +44,8 @@ type InAppNotification = {
 
 export function Header({ title = "Ümumi Baxış", subtitle, onMenuClick, lightweight = false }: HeaderProps) {
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true)
-  const [user, setUser] = useState<FrontendUser | null>(null)
+  const [isLoading, setIsLoading] = useState(() => getCachedFrontendUser() === null)
+  const [user, setUser] = useState<FrontendUser | null>(() => getCachedFrontendUser())
   const [recentSales, setRecentSales] = useState<HeaderSale[]>([])
   const [lowStock, setLowStock] = useState<HeaderStock[]>([])
   const [inAppNotifications, setInAppNotifications] = useState<InAppNotification[]>([])
@@ -52,11 +53,7 @@ export function Header({ title = "Ümumi Baxış", subtitle, onMenuClick, lightw
   async function bootstrap() {
     try {
       const token = await ensureBackendToken("bestsol-header-web")
-      const meResponse = await backendFetch("/me", token)
-
-      const meJson = await meResponse.json()
-
-      setUser(meJson.data ?? meJson)
+      setUser(await fetchFrontendUser(token))
 
       if (lightweight) {
         setRecentSales([])
@@ -65,19 +62,12 @@ export function Header({ title = "Ümumi Baxış", subtitle, onMenuClick, lightw
         return
       }
 
-      const [recentSalesResponse, lowStockResponse, notificationsResponse] = await Promise.all([
-        backendFetch("/dashboard/recent-sales", token),
-        backendFetch("/dashboard/low-stock", token),
-        backendFetch("/dashboard/notifications", token),
-      ])
+      const response = await backendFetch("/dashboard/header", token)
+      const json = await response.json()
 
-      const recentSalesJson = await recentSalesResponse.json()
-      const lowStockJson = await lowStockResponse.json()
-      const notificationsJson = await notificationsResponse.json()
-
-      setRecentSales(recentSalesJson.data ?? [])
-      setLowStock(lowStockJson.data ?? [])
-      setInAppNotifications(notificationsJson.data ?? [])
+      setRecentSales(json.recent_sales ?? [])
+      setLowStock(json.low_stock ?? [])
+      setInAppNotifications(json.notifications ?? [])
     } catch {
       setUser(null)
       setRecentSales([])
@@ -96,6 +86,26 @@ export function Header({ title = "Ümumi Baxış", subtitle, onMenuClick, lightw
     return () => window.clearTimeout(timer)
   }, [])
 
+  useEffect(() => {
+    const handleUserUpdated = (event: Event) => {
+      const customEvent = event as CustomEvent<FrontendUser>
+      setUser(customEvent.detail)
+      setIsLoading(false)
+    }
+    const handleUserCleared = () => {
+      setUser(null)
+      setIsLoading(true)
+    }
+
+    window.addEventListener("bestsol:user-updated", handleUserUpdated as EventListener)
+    window.addEventListener("bestsol:user-cleared", handleUserCleared)
+
+    return () => {
+      window.removeEventListener("bestsol:user-updated", handleUserUpdated as EventListener)
+      window.removeEventListener("bestsol:user-cleared", handleUserCleared)
+    }
+  }, [])
+
   const logout = async () => {
     try {
       const token = await ensureBackendToken("bestsol-header-logout")
@@ -103,6 +113,7 @@ export function Header({ title = "Ümumi Baxış", subtitle, onMenuClick, lightw
     } catch {
       // ignore logout transport errors and clear local session anyway
     } finally {
+      clearCachedFrontendUser()
       clearBackendSession()
       router.push("/login")
     }

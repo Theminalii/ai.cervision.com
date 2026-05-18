@@ -46,7 +46,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('category_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('brand_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('supplier_id')->nullable()->constrained()->nullOnDelete();
+            $table->unsignedBigInteger('supplier_id')->nullable();
             $table->decimal('category_coefficient', 10, 4)->default(1);
             $table->decimal('supplier_coefficient', 10, 4)->default(1);
             $table->decimal('brand_coefficient', 10, 4)->default(1);

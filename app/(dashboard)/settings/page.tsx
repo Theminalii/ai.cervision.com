@@ -18,6 +18,7 @@ import {
   setPreferredApiBase,
   setStoredToken,
 } from "@/lib/backend-api"
+import { setCachedFrontendUser } from "@/lib/frontend-user"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -701,15 +702,18 @@ export default function SettingsPage() {
       setPreferredApiBase(normalizedBase)
       setApiBaseInput(normalizedBase)
       clearLoggedOutFlag()
-      const newToken = await loginToBackend(connectForm.email, connectForm.password, "bestsol-settings-manual-web")
-      if (!newToken) {
+      const result = await loginToBackend(connectForm.email, connectForm.password, "bestsol-settings-manual-web")
+      if (!result?.token) {
         throw new Error("Email və ya şifrə yanlışdır.")
       }
 
-      setToken(newToken)
-      setStoredToken(newToken)
+      setToken(result.token)
+      setStoredToken(result.token)
       clearLoggedOutFlag()
-      await loadAll(newToken)
+      if (result.user) {
+        setCachedFrontendUser(result.user as ApiUser)
+      }
+      await loadAll(result.token)
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Bağlantı qurulmadı.")
     } finally {

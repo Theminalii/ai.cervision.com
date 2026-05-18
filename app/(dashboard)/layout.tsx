@@ -4,7 +4,8 @@ import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { Sidebar } from "@/components/layout/sidebar"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { backendFetch, ensureBackendToken } from "@/lib/backend-api"
+import { ensureBackendToken } from "@/lib/backend-api"
+import { fetchFrontendUser } from "@/lib/frontend-user"
 import { cn } from "@/lib/utils"
 
 export default function DashboardLayout({
@@ -31,9 +32,7 @@ export default function DashboardLayout({
     const redirectSalesRep = async () => {
       try {
         const token = await ensureBackendToken("bestsol-mobile-dashboard-check")
-        const response = await backendFetch("/me", token)
-        const json = await response.json()
-        const user = json.data ?? json
+        const user = await fetchFrontendUser(token)
 
         if (!cancelled && user?.role?.name === "Satış Nümayəndəsi") {
           router.replace("/pos")

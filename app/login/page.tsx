@@ -3,6 +3,8 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { backendFetch, clearLoggedOutFlag, loginToBackend, setStoredToken } from "@/lib/backend-api"
+import { setCachedFrontendUser } from "@/lib/frontend-user"
+import type { FrontendUser } from "@/lib/permissions"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -18,11 +20,13 @@ export default function LoginPage() {
     password: "",
   })
 
-  const resolveDestination = async (token: string) => {
+  const resolveDestination = async (token: string, loginUser?: FrontendUser | null) => {
     try {
-      const response = await backendFetch("/me", token)
-      const json = await response.json()
-      const user = json.data ?? json
+      const user = loginUser ?? await (async () => {
+        const response = await backendFetch("/me", token)
+        const json = await response.json()
+        return (json.data ?? json) as FrontendUser
+      })()
       const isMobile = typeof window !== "undefined" && window.innerWidth < 768
 
       if (isMobile && user?.role?.name === "Satış Nümayəndəsi") {
@@ -45,14 +49,18 @@ export default function LoginPage() {
     setErrorMessage(null)
 
     try {
-      const token = await loginToBackend(form.email, form.password, "bestsol-login-web")
-      if (!token) {
+      const result = await loginToBackend(form.email, form.password, "bestsol-login-web")
+      if (!result?.token) {
         throw new Error("Email və ya şifrə yanlışdır.")
       }
 
+      const token = result.token
       setStoredToken(token)
       clearLoggedOutFlag()
-      router.push(await resolveDestination(token))
+      if (result.user) {
+        setCachedFrontendUser(result.user as FrontendUser)
+      }
+      router.push(await resolveDestination(token, (result.user as FrontendUser | null) ?? null))
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Giriş alınmadı.")
     } finally {
