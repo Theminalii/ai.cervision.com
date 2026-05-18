@@ -1,7 +1,6 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { backendFetch, clearLoggedOutFlag, loginToBackend, setStoredToken } from "@/lib/backend-api"
 import { setCachedFrontendUser } from "@/lib/frontend-user"
 import type { FrontendUser } from "@/lib/permissions"
@@ -12,7 +11,6 @@ import { Label } from "@/components/ui/label"
 import { Loader2 } from "lucide-react"
 
 export default function LoginPage() {
-  const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [form, setForm] = useState({
@@ -60,7 +58,7 @@ export default function LoginPage() {
       if (result.user) {
         setCachedFrontendUser(result.user as FrontendUser)
       }
-      router.push(await resolveDestination(token, (result.user as FrontendUser | null) ?? null))
+      window.location.replace(await resolveDestination(token, (result.user as FrontendUser | null) ?? null))
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Giriş alınmadı.")
     } finally {

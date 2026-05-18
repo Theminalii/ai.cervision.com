@@ -12,7 +12,7 @@ function getStorage() {
     return null
   }
 
-  return window.sessionStorage
+  return window.localStorage
 }
 
 export function getCachedFrontendUser() {
@@ -70,7 +70,7 @@ export function clearCachedFrontendUser() {
 
 export async function fetchFrontendUser(token: string, options?: { force?: boolean }) {
   const cached = !options?.force ? getCachedFrontendUser() : null
-  if (cached) {
+  if (cached?.role?.name) {
     return cached
   }
 

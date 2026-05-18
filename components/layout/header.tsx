@@ -73,6 +73,7 @@ export function Header({ title = "Ümumi Baxış", subtitle, onMenuClick, lightw
       setRecentSales([])
       setLowStock([])
       setInAppNotifications([])
+      router.replace("/login")
     } finally {
       setIsLoading(false)
     }

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { Header } from "@/components/layout/header"
 import { backendFetch, ensureBackendToken } from "@/lib/backend-api"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import {
@@ -74,6 +75,7 @@ const formatCurrency = (value: number) =>
   }).format(value)
 
 export default function DashboardPage() {
+  const isMobile = useIsMobile()
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
@@ -89,33 +91,58 @@ export default function DashboardPage() {
 
     try {
       const token = await ensureBackendToken("bestsol-dashboard-web")
-      const [
-        summaryResponse,
-        salesChartResponse,
-        expenseChartResponse,
-        recentSalesResponse,
-        recentPurchasesResponse,
-        lowStockResponse,
-      ] = await Promise.all([
-        backendFetch("/dashboard/summary", token),
-        backendFetch("/dashboard/sales-chart", token),
-        backendFetch("/dashboard/expense-chart", token),
-        backendFetch("/dashboard/recent-sales", token),
-        backendFetch("/dashboard/recent-purchases", token),
-        backendFetch("/dashboard/low-stock", token),
+      const summaryResponse = await backendFetch("/dashboard/summary", token)
+      setSummary(await summaryResponse.json())
+
+      const settled = await Promise.allSettled([
+        backendFetch("/dashboard/recent-sales", token).then((response) => response.json()),
+        backendFetch("/dashboard/low-stock", token).then((response) => response.json()),
+        ...(isMobile
+          ? []
+          : [
+              backendFetch("/dashboard/sales-chart", token).then((response) => response.json()),
+              backendFetch("/dashboard/expense-chart", token).then((response) => response.json()),
+              backendFetch("/dashboard/recent-purchases", token).then((response) => response.json()),
+            ]),
       ])
 
-      setSummary(await summaryResponse.json())
-      setSalesChart(await salesChartResponse.json())
-      setExpenseChart(await expenseChartResponse.json())
+      const [recentSalesResult, lowStockResult, salesChartResult, expenseChartResult, recentPurchasesResult] = settled
 
-      const recentSalesJson = await recentSalesResponse.json()
-      const recentPurchasesJson = await recentPurchasesResponse.json()
-      const lowStockJson = await lowStockResponse.json()
+      if (recentSalesResult?.status === "fulfilled") {
+        setRecentSales(recentSalesResult.value.data ?? [])
+      } else {
+        setRecentSales([])
+      }
 
-      setRecentSales(recentSalesJson.data ?? [])
-      setRecentPurchases(recentPurchasesJson.data ?? [])
-      setLowStock(lowStockJson.data ?? [])
+      if (lowStockResult?.status === "fulfilled") {
+        setLowStock(lowStockResult.value.data ?? [])
+      } else {
+        setLowStock([])
+      }
+
+      if (!isMobile) {
+        if (salesChartResult?.status === "fulfilled") {
+          setSalesChart(salesChartResult.value ?? [])
+        } else {
+          setSalesChart([])
+        }
+
+        if (expenseChartResult?.status === "fulfilled") {
+          setExpenseChart(expenseChartResult.value ?? [])
+        } else {
+          setExpenseChart([])
+        }
+
+        if (recentPurchasesResult?.status === "fulfilled") {
+          setRecentPurchases(recentPurchasesResult.value.data ?? [])
+        } else {
+          setRecentPurchases([])
+        }
+      } else {
+        setSalesChart([])
+        setExpenseChart([])
+        setRecentPurchases([])
+      }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Dashboard məlumatları yüklənmədi.")
     } finally {
@@ -225,23 +252,29 @@ export default function DashboardPage() {
               <CardTitle className="text-[15px] font-semibold">Satış və Xərc Trendi</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="h-70">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={salesChart.map((item, index) => ({
-                      name: item.month,
-                      sales: item.total,
-                      expense: expenseChart[index]?.total ?? 0,
-                    }))}
-                  >
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                    <YAxis axisLine={false} tickLine={false} tickFormatter={(value) => `${Math.round(value / 1000)}k`} />
-                    <Tooltip formatter={(value: number) => `${formatCurrency(value)} AZN`} />
-                    <Area type="monotone" dataKey="sales" stroke="oklch(0.72 0.19 175)" fillOpacity={0.2} fill="oklch(0.72 0.19 175)" />
-                    <Area type="monotone" dataKey="expense" stroke="oklch(0.65 0.15 250)" fillOpacity={0.15} fill="oklch(0.65 0.15 250)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+              {isMobile ? (
+                <div className="flex h-44 items-center justify-center rounded-xl bg-muted/40 text-sm text-muted-foreground">
+                  Mobil görünüşdə dashboard yüngülləşdirildi.
+                </div>
+              ) : (
+                <div className="h-70">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={salesChart.map((item, index) => ({
+                        name: item.month,
+                        sales: item.total,
+                        expense: expenseChart[index]?.total ?? 0,
+                      }))}
+                    >
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                      <YAxis axisLine={false} tickLine={false} tickFormatter={(value) => `${Math.round(value / 1000)}k`} />
+                      <Tooltip formatter={(value: number) => `${formatCurrency(value)} AZN`} />
+                      <Area type="monotone" dataKey="sales" stroke="oklch(0.72 0.19 175)" fillOpacity={0.2} fill="oklch(0.72 0.19 175)" />
+                      <Area type="monotone" dataKey="expense" stroke="oklch(0.65 0.15 250)" fillOpacity={0.15} fill="oklch(0.65 0.15 250)" />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -250,16 +283,31 @@ export default function DashboardPage() {
               <CardTitle className="text-[15px] font-semibold">Son Dövr Satışları</CardTitle>
             </CardHeader>
             <CardContent className="pt-0">
-              <div className="h-55">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyBars}>
-                    <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                    <YAxis hide />
-                    <Tooltip formatter={(value: number) => `${formatCurrency(value)} AZN`} />
-                    <Bar dataKey="value" fill="oklch(0.72 0.19 175)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {isMobile ? (
+                <div className="space-y-3">
+                  {recentSales.slice(0, 4).map((sale) => (
+                    <div key={sale.sale_number} className="rounded-lg border border-border px-3 py-2">
+                      <div className="text-sm font-medium">{sale.customer?.name ?? "Müştəri"}</div>
+                      <div className="text-xs text-muted-foreground">{sale.sale_number}</div>
+                      <div className="mt-1 text-sm">{formatCurrency(sale.total_amount)} AZN</div>
+                    </div>
+                  ))}
+                  {recentSales.length === 0 ? (
+                    <div className="text-sm text-muted-foreground">Satış tapılmadı.</div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="h-55">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={weeklyBars}>
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                      <YAxis hide />
+                      <Tooltip formatter={(value: number) => `${formatCurrency(value)} AZN`} />
+                      <Bar dataKey="value" fill="oklch(0.72 0.19 175)" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

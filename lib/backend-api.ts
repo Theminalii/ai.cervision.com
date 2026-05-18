@@ -2,17 +2,7 @@ import { normalizeFrontendUserPayload } from "@/lib/permissions"
 
 export const API_BASE = process.env.NEXT_PUBLIC_BACKEND_API_URL ?? "http://127.0.0.1:8000/api"
 export const TOKEN_KEY = "bestsol-backend-token"
-export const LOGGED_OUT_KEY = "bestsol-logged-out"
 export const API_BASE_STORAGE_KEY = "bestsol-backend-api-base"
-export const SESSION_ACTIVE_KEY = "bestsol-session-active"
-
-function getSessionStorage() {
-  if (typeof window === "undefined") {
-    return null
-  }
-
-  return window.sessionStorage
-}
 
 function getLocalStorage() {
   if (typeof window === "undefined") {
@@ -22,26 +12,12 @@ function getLocalStorage() {
   return window.localStorage
 }
 
-function initializeBrowserSession() {
-  const session = getSessionStorage()
-  if (!session) {
-    return
-  }
-
-  if (session.getItem(SESSION_ACTIVE_KEY) === "1") {
-    return
-  }
-
-  session.setItem(SESSION_ACTIVE_KEY, "1")
-}
-
 export function getStoredToken() {
   const storage = getLocalStorage()
   if (!storage) {
     return null
   }
 
-  initializeBrowserSession()
   return storage.getItem(TOKEN_KEY)
 }
 
@@ -51,7 +27,6 @@ export function setStoredToken(token: string) {
     return
   }
 
-  initializeBrowserSession()
   storage.setItem(TOKEN_KEY, token)
 }
 
@@ -65,29 +40,15 @@ export function clearStoredToken() {
 }
 
 export function getLoggedOutFlag() {
-  initializeBrowserSession()
-  const storage = getSessionStorage()
-  return storage?.getItem(LOGGED_OUT_KEY) ?? null
+  return null
 }
 
 export function setLoggedOutFlag() {
-  initializeBrowserSession()
-  const storage = getSessionStorage()
-  if (!storage) {
-    return
-  }
-
-  storage.setItem(LOGGED_OUT_KEY, "1")
+  return
 }
 
 export function clearLoggedOutFlag() {
-  initializeBrowserSession()
-  const storage = getSessionStorage()
-  if (!storage) {
-    return
-  }
-
-  storage.removeItem(LOGGED_OUT_KEY)
+  return
 }
 
 function getNetworkErrorMessage() {
@@ -115,22 +76,51 @@ export function normalizeApiBase(base: string) {
 }
 
 function getApiCandidates() {
-  const candidates = [normalizeApiBase(API_BASE)]
+  const envBase = normalizeApiBase(API_BASE)
+  const candidates = [envBase]
 
   if (typeof window !== "undefined") {
     const storedBase = window.localStorage.getItem(API_BASE_STORAGE_KEY)
+    const currentHost = window.location.hostname
+    const isLocalHost =
+      currentHost === "localhost" ||
+      currentHost === "127.0.0.1" ||
+      currentHost.endsWith(".local")
+
     if (storedBase) {
-      candidates.unshift(normalizeApiBase(storedBase))
+      const normalizedStoredBase = normalizeApiBase(storedBase)
+      const storedHost = (() => {
+        try {
+          return new URL(normalizedStoredBase).hostname
+        } catch {
+          return ""
+        }
+      })()
+
+      const envHost = (() => {
+        try {
+          return new URL(envBase).hostname
+        } catch {
+          return ""
+        }
+      })()
+
+      if (normalizedStoredBase === envBase || storedHost === envHost || storedHost === currentHost) {
+        candidates.unshift(normalizedStoredBase)
+      } else {
+        window.localStorage.removeItem(API_BASE_STORAGE_KEY)
+      }
     }
 
-    const hostname = window.location.hostname
-    candidates.push(normalizeApiBase(`http://${hostname}:8000`))
-    candidates.push(normalizeApiBase(`http://${hostname}:8001`))
-    candidates.push(normalizeApiBase("http://127.0.0.1:8000"))
-    candidates.push(normalizeApiBase("http://localhost:8000"))
-    candidates.push(normalizeApiBase("http://127.0.0.1:8001"))
-    candidates.push(normalizeApiBase("http://localhost:8001"))
-    candidates.push(normalizeApiBase(window.location.origin))
+    if (isLocalHost) {
+      candidates.push(normalizeApiBase(`http://${currentHost}:8000`))
+      candidates.push(normalizeApiBase(`http://${currentHost}:8001`))
+      candidates.push(normalizeApiBase("http://127.0.0.1:8000"))
+      candidates.push(normalizeApiBase("http://localhost:8000"))
+      candidates.push(normalizeApiBase("http://127.0.0.1:8001"))
+      candidates.push(normalizeApiBase("http://localhost:8001"))
+      candidates.push(normalizeApiBase(window.location.origin))
+    }
   }
 
   return unique(candidates)
@@ -222,13 +212,7 @@ export async function ensureBackendToken(deviceName = "bestsol-web") {
     return storedToken
   }
 
-  if (getLoggedOutFlag() === "1") {
-    window.location.href = "/login"
-    throw new Error("Giriş tələb olunur.")
-  }
-
-  setLoggedOutFlag()
-  window.location.href = `/login?device=${encodeURIComponent(deviceName)}`
+  window.location.replace(`/login?device=${encodeURIComponent(deviceName)}`)
   throw new Error("Giriş tələb olunur.")
 }
 
@@ -254,7 +238,6 @@ export async function backendFetch(path: string, token: string, init?: RequestIn
 
     if (response.status === 401) {
       clearStoredToken()
-      setLoggedOutFlag()
       throw new Error("Sessiya bitib. Yenidən qoşulun.")
     }
 
@@ -287,5 +270,4 @@ export async function backendFetch(path: string, token: string, init?: RequestIn
 
 export function clearBackendSession() {
   clearStoredToken()
-  setLoggedOutFlag()
 }

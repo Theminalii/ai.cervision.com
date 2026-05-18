@@ -6,6 +6,7 @@ import { Sidebar } from "@/components/layout/sidebar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { ensureBackendToken } from "@/lib/backend-api"
 import { fetchFrontendUser } from "@/lib/frontend-user"
+import { Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export default function DashboardLayout({
@@ -17,32 +18,37 @@ export default function DashboardLayout({
   const router = useRouter()
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [authReady, setAuthReady] = useState(false)
 
   useEffect(() => {
     setSidebarOpen(false)
   }, [pathname])
 
   useEffect(() => {
-    if (!isMobile || pathname !== "/dashboard") {
-      return
-    }
-
     let cancelled = false
 
-    const redirectSalesRep = async () => {
+    const bootstrapAuth = async () => {
       try {
-        const token = await ensureBackendToken("bestsol-mobile-dashboard-check")
-        const user = await fetchFrontendUser(token)
+        const token = await ensureBackendToken("bestsol-layout-bootstrap")
+        const user = await fetchFrontendUser(token, { force: true })
 
-        if (!cancelled && user?.role?.name === "Satış Nümayəndəsi") {
+        if (!cancelled && isMobile && pathname === "/dashboard" && user?.role?.name === "Satış Nümayəndəsi") {
           router.replace("/pos")
+          return
+        }
+
+        if (!cancelled) {
+          setAuthReady(true)
         }
       } catch {
-        // Keep current page when user lookup fails.
+        if (!cancelled) {
+          router.replace("/login")
+        }
       }
     }
 
-    void redirectSalesRep()
+    setAuthReady(false)
+    void bootstrapAuth()
 
     return () => {
       cancelled = true
@@ -57,6 +63,17 @@ export default function DashboardLayout({
       window.removeEventListener("bestsol:open-sidebar", openSidebar)
     }
   }, [])
+
+  if (!authReady) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Sistem yüklənir...
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="flex h-screen bg-background">
